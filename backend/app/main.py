@@ -1,15 +1,51 @@
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import select
 
 from app.api import specs, games, modlist, downloads, settings
 from app.config import get_settings
+from app.database import engine, async_session, Base
+
+logger = logging.getLogger(__name__)
 
 app_settings = get_settings()
+
+
+async def init_db():
+    """Create tables and seed data if empty."""
+    from app.models import Game  # noqa: F811 — ensure all models are imported
+    import app.models  # noqa: F401 — register all models with Base
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    logger.info("Database tables created/verified.")
+
+    async with async_session() as session:
+        result = await session.execute(select(Game).limit(1))
+        if result.scalar_one_or_none() is None:
+            logger.info("Database empty — running seed...")
+            from app.seeds.run_seed import main as run_seed
+            await run_seed()
+            logger.info("Seed complete.")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        await init_db()
+    except Exception:
+        logger.exception("Database init failed — app will start without data")
+    yield
+
 
 app = FastAPI(
     title="Modify API",
     description="AI-powered video game mod manager API",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
