@@ -1,5 +1,5 @@
 import asyncio
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from app.services.nexus_client import NexusModsClient
 

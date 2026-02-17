@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 
-from app.schemas.specs import SpecsInput, SpecsParseResponse, HardwareSpecs
+from app.schemas.specs import SpecsInput, SpecsParseResponse
 from app.services.spec_parser import parse_specs
 from app.services.tier_classifier import classify_tier
 

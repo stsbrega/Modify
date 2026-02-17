@@ -1,4 +1,3 @@
-import uuid
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect

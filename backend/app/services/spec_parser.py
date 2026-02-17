@@ -112,7 +112,7 @@ async def parse_specs_llm(raw_text: str) -> HardwareSpecs | None:
             # Strip markdown code block
             lines = response.split("\n")
             response = "\n".join(
-                l for l in lines if not l.strip().startswith("```")
+                line for line in lines if not line.strip().startswith("```")
             )
 
         data = json.loads(response)
