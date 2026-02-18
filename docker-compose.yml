@@ -18,7 +18,7 @@ services:
   backend:
     build: ./backend
     ports:
-      - "8000:8000"
+      - "8000:8080"
     environment:
       DATABASE_URL: postgresql+asyncpg://modify:modify@db:5432/modify
     env_file:
