@@ -53,6 +53,7 @@ tmp/
 
 # Claude Code
 .claude/
+.claude.local.md
 
 # OS
 .DS_Store

@@ -9,6 +9,7 @@ Modify is an AI-powered game modding assistant that generates personalized mod l
 - **Frontend**: Angular 19.2 (standalone components) + Tailwind CSS 4 + TypeScript 5.7
 - **Backend**: Python 3.12 + FastAPI 0.115 + SQLAlchemy 2.0 + Pydantic 2
 - **Database**: PostgreSQL 16 (via asyncpg)
+- **Auth**: JWT (python-jose) + bcrypt (passlib) + OAuth (authlib) + email verification (fastapi-mail)
 - **Migrations**: Alembic (no migrations yet — seed script uses `create_all`)
 - **LLM**: OpenAI-compatible client (`openai` SDK) — supports Ollama (local), Groq, Together AI, HuggingFace (cloud)
 - **Mod API**: Nexus Mods v2 GraphQL API + optional custom mod source
@@ -21,20 +22,29 @@ Modify is an AI-powered game modding assistant that generates personalized mod l
 backend/
   app/
     api/              # FastAPI route handlers
+      auth.py         #   /auth/* — register, login, OAuth, email verify, password reset
+      deps.py         #   JWT dependency injection (get_current_user, require_verified_email)
       games.py        #   GET /games/, GET /games/{game_id}/playstyles
       specs.py        #   POST /specs/parse
       modlist.py      #   POST /modlist/generate, GET /modlist/{modlist_id}
       downloads.py    #   POST /downloads/start, GET /downloads/{id}/status, WS /downloads/{id}/ws
-      settings.py     #   GET /settings/, PUT /settings/
+      settings.py     #   GET /settings/, PUT /settings/ (requires auth)
     models/           # SQLAlchemy ORM models
+      user.py         #   User (auth, profile, hardware specs)
+      user_settings.py#   UserSettings (per-user preferences)
+      refresh_token.py#   RefreshToken (JWT rotation)
+      email_verification.py # EmailVerification
       game.py         #   Game
       playstyle.py    #   Playstyle
       mod.py          #   Mod
       modlist.py      #   ModList
       compatibility.py#   CompatibilityRule
       playstyle_mod.py#   PlaystyleMod (junction table)
-    schemas/          # Pydantic request/response schemas (game, modlist, specs)
+    schemas/          # Pydantic request/response schemas (auth, game, modlist, specs)
     services/         # Business logic
+      auth.py         #   JWT creation/validation, password hashing, token management
+      email.py        #   SMTP email sending (verification, password reset)
+      oauth.py        #   OAuth provider abstraction (Google, Discord, Apple)
       spec_parser.py  #   Hardware text parsing (regex-based)
       tier_classifier.py # GPU/CPU tier classification (low/mid/high/ultra)
       modlist_generator.py # LLM-powered mod list generation (with DB fallback)
@@ -53,20 +63,24 @@ backend/
 frontend/
   src/app/
     core/
-      services/       # ApiService, NotificationService
-      interceptors/   # ErrorInterceptor
+      services/       # ApiService, AuthService, NotificationService, ThemeService
+      interceptors/   # AuthInterceptor, ErrorInterceptor
+      guards/         # authGuard, guestGuard
     shared/
-      components/     # header, hardware-badge, notification-toast
-      models/         # TypeScript interfaces (game, mod, specs)
+      components/     # header, notification-toast
+      models/         # TypeScript interfaces (auth, game, mod, specs)
     features/
+      auth/           # Login, register, OAuth callback, email verify, password reset
+      browse/         # Mod browsing view
       dashboard/      # Main dashboard view
+      landing/        # Landing page
       setup/          # Hardware setup wizard
         steps/        #   game-select, playstyle-select, spec-input sub-components
       modlist/        # Generated mod list view
       downloads/      # Download progress view
       settings/       # User settings view
     app.routes.ts     # Top-level routing
-    app.config.ts     # App config (providers, errorInterceptor)
+    app.config.ts     # App config (providers, authInterceptor, errorInterceptor)
   nginx.conf          # Nginx template (uses ${PORT} substitution)
   docker-entrypoint.sh # Runtime env injection (PORT, API_URL)
 ```
@@ -104,7 +118,7 @@ docker-compose up -d                    # Start full stack
 # Swagger:  http://localhost:8000/docs
 ```
 
-**Note**: Backend Dockerfile hardcodes port 8080 (for Railway). docker-compose maps `8000:8000` for local dev, so the dev server uses uvicorn directly (not Docker) on port 8000.
+**Note**: Backend Dockerfile hardcodes port 8080 (for Railway). docker-compose maps `8000:8080` for local dev. For development, use uvicorn directly (not Docker) on port 8000.
 
 ## Code Conventions
 
@@ -114,7 +128,7 @@ docker-compose up -d                    # Start full stack
 - Models in `models/`, Pydantic schemas in `schemas/`, business logic in `services/`
 - API routes prefixed with `/api/`
 - Environment config via `.env` file (see `backend/.env.example`)
-- Settings API persists to a local `user_settings.json` file
+- Settings are per-user in the `user_settings` PostgreSQL table (requires authentication)
 - LLM modlist generation falls back to curated DB mods if LLM call fails
 
 ### Frontend
@@ -138,13 +152,26 @@ docker-compose up -d                    # Start full stack
 - `POST /api/downloads/start` — Start downloading mods
 - `GET  /api/downloads/{modlist_id}/status` — Download progress
 - `WS   /api/downloads/{modlist_id}/ws` — Real-time download progress (WebSocket)
-- `GET  /api/settings/` — Get user settings
-- `PUT  /api/settings/` — Update user settings
+- `GET  /api/settings/` — Get user settings (auth required)
+- `PUT  /api/settings/` — Update user settings (auth required)
+- `POST /api/auth/register` — Register new user
+- `POST /api/auth/login` — Login (returns JWT + refresh cookie)
+- `POST /api/auth/refresh` — Refresh access token
+- `POST /api/auth/logout` — Logout (revokes refresh token)
+- `GET  /api/auth/me` — Get current user profile
+- `PUT  /api/auth/me` — Update profile
+- `GET  /api/auth/me/hardware` — Get saved hardware specs
+- `PUT  /api/auth/me/hardware` — Save hardware specs
+- `POST /api/auth/verify-email` — Verify email with token
+- `POST /api/auth/forgot-password` — Request password reset email
+- `POST /api/auth/reset-password` — Reset password with token
+- `GET  /api/auth/oauth/{provider}` — Start OAuth flow (google/discord/apple)
+- `GET  /api/auth/oauth/{provider}/callback` — OAuth callback
 
 ## CI/CD
 
 GitHub Actions (`.github/workflows/ci.yml`) runs on push/PR to main:
-- Backend: ruff lint, mypy type check (continue-on-error), pytest (continue-on-error)
+- Backend: ruff lint (hard-fail), mypy type check (continue-on-error), pytest (soft-fail)
 - Frontend: ng lint (continue-on-error), production build
 - Docker: Compose config validation (push to main only)
 
@@ -154,43 +181,3 @@ Community files: `.github/CONTRIBUTING.md`, `.github/ISSUE_TEMPLATE/` (bug_repor
 
 When generating code or text related to custom mod sources, use generic terms like "custom mod source" or "Custom API Source" rather than naming specific adult content sites. The Anthropic API will block responses containing explicit site references.
 
----
-
-# Memory
-
-## Me
-Salvatore (Sal) Sbrega, based in Vancouver, BC. Finance & FP&A professional (7+ years at TD Bank), building the Modify app as a side project.
-
-## People
-| Who | Role |
-|-----|------|
-| **Cindy** | Cindy Nicole Ngo, partner |
-| **Denise** | Denise @ Mai Real Estate Group |
-| **Thu** | Thu Peng, counselor at RCAV |
-
-> Full list: memory/glossary.md, profiles: memory/people/
-
-## Terms
-| Term | Meaning |
-|------|---------|
-| APMCI | Atlantic Plastics & Metal Crafts, Inc. (Philippines) |
-| ERP | Enterprise Resource Planning (APMCI project) |
-| FP&A | Financial Planning & Analysis |
-| CSBFL | Canada Small Business Financing Loan |
-| SE/AE | Skyrim Special/Anniversary Edition |
-| Nexus | Nexus Mods API |
-
-> Full glossary: memory/glossary.md
-
-## Projects
-| Name | What |
-|------|------|
-| **Modify** | AI game modding assistant (Angular + FastAPI) — active |
-| **APMCI ERP** | ERP system for injection moulding co. in Philippines — research phase |
-
-> Details: memory/projects/
-
-## Preferences
-- Based in Vancouver, BC
-- Frequent Vancouver dining spots (Cactus Club, Nook, Bufala, Din Tai Fung)
-- Flies Air Canada and Delta
