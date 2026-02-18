@@ -1,4 +1,4 @@
-import { Component, signal, inject, OnInit, OnDestroy, AfterViewInit } from '@angular/core';
+import { Component, signal, computed, inject, OnInit, OnDestroy, AfterViewInit } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { trigger, transition, style, animate, query, stagger } from '@angular/animations';
 import { AuthService } from '../../core/services/auth.service';
@@ -92,50 +92,63 @@ import { ApiService } from '../../core/services/api.service';
             <div class="preview-dots">
               <span></span><span></span><span></span>
             </div>
-            <span class="preview-title">Modify — Modlist Generator</span>
+            <span class="preview-title">Modify — Skyrim AE Loadout</span>
+            <span class="preview-mod-count">{{ visibleModCount() }} mods</span>
           </div>
-          <div class="preview-content">
+          <div class="preview-body">
             <div class="preview-sidebar">
-              <div class="preview-sidebar-item active"></div>
-              <div class="preview-sidebar-item"></div>
-              <div class="preview-sidebar-item"></div>
-              <div class="preview-sidebar-item"></div>
+              <div class="preview-sidebar-item active">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                </svg>
+              </div>
+              <div class="preview-sidebar-item">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                </svg>
+              </div>
+              <div class="preview-sidebar-item">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2v-4M9 21H5a2 2 0 01-2-2v-4"/>
+                </svg>
+              </div>
+              <div class="preview-sidebar-item">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+              </div>
             </div>
             <div class="preview-main">
-              <div class="preview-header-bar"></div>
-              <div class="preview-cards">
-                <div class="preview-card">
-                  <div class="preview-card-icon gold"></div>
-                  <div class="preview-card-lines">
-                    <div class="preview-line w60"></div>
-                    <div class="preview-line w40 muted"></div>
+              <div class="preview-list-header">
+                <span class="preview-label">Combat Overhaul</span>
+                <span class="preview-game-badge">Skyrim AE</span>
+              </div>
+              <div class="preview-mod-list">
+                @for (mod of visibleMods(); track mod.order) {
+                  <div class="preview-mod" [class.disabled]="!mod.enabled"
+                       [style.opacity]="modOpacity(mod.order)">
+                    <div class="preview-mod-order">{{ mod.order }}</div>
+                    <div class="preview-mod-info">
+                      <div class="preview-mod-name">{{ mod.name }}</div>
+                      <div class="preview-mod-author">by {{ mod.author }}</div>
+                      <div class="preview-mod-summary"
+                           [style.max-height.px]="summaryHeight()">
+                        {{ mod.summary }}
+                      </div>
+                      <div class="preview-mod-reason"
+                           [style.max-height.px]="reasonHeight()"
+                           [style.opacity]="reasonOpacity()">
+                        {{ mod.reason }}
+                      </div>
+                    </div>
+                    <div class="preview-mod-actions">
+                      <span class="preview-status" [class]="'preview-status--' + mod.status">
+                        {{ mod.status }}
+                      </span>
+                      <div class="preview-toggle" [class.on]="mod.enabled"></div>
+                    </div>
                   </div>
-                  <div class="preview-toggle on"></div>
-                </div>
-                <div class="preview-card">
-                  <div class="preview-card-icon blue"></div>
-                  <div class="preview-card-lines">
-                    <div class="preview-line w50"></div>
-                    <div class="preview-line w70 muted"></div>
-                  </div>
-                  <div class="preview-toggle on"></div>
-                </div>
-                <div class="preview-card">
-                  <div class="preview-card-icon gold"></div>
-                  <div class="preview-card-lines">
-                    <div class="preview-line w45"></div>
-                    <div class="preview-line w55 muted"></div>
-                  </div>
-                  <div class="preview-toggle"></div>
-                </div>
-                <div class="preview-card">
-                  <div class="preview-card-icon blue"></div>
-                  <div class="preview-card-lines">
-                    <div class="preview-line w65"></div>
-                    <div class="preview-line w35 muted"></div>
-                  </div>
-                  <div class="preview-toggle on"></div>
-                </div>
+                }
               </div>
             </div>
           </div>
@@ -581,6 +594,7 @@ import { ApiService } from '../../core/services/api.service';
       border-radius: 14px;
       overflow: hidden;
       box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+      will-change: transform;
       animation: subtle-float 8s ease-in-out infinite;
     }
     @keyframes subtle-float {
@@ -611,92 +625,190 @@ import { ApiService } from '../../core/services/api.service';
     .preview-title {
       font-size: 0.75rem;
       color: var(--color-text-dim);
+      flex: 1;
     }
-    .preview-content {
+    .preview-mod-count {
+      font-size: 0.6875rem;
+      color: var(--color-gold);
+      font-weight: 600;
+      letter-spacing: 0.03em;
+    }
+    .preview-body {
       display: flex;
-      min-height: 280px;
+      min-height: 220px;
     }
     .preview-sidebar {
-      width: 56px;
+      width: 48px;
       background: rgba(255, 255, 255, 0.02);
       border-right: 1px solid var(--color-border);
-      padding: 1rem 0;
+      padding: 0.75rem 0;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 0.75rem;
+      gap: 0.5rem;
     }
     .preview-sidebar-item {
-      width: 28px;
-      height: 28px;
-      border-radius: 6px;
-      background: rgba(255, 255, 255, 0.05);
-    }
-    .preview-sidebar-item.active {
-      background: var(--color-gold);
-      opacity: 0.6;
-    }
-    .preview-main {
-      flex: 1;
-      padding: 1.25rem;
-    }
-    .preview-header-bar {
-      height: 12px;
-      width: 40%;
-      background: rgba(255, 255, 255, 0.08);
-      border-radius: 6px;
-      margin-bottom: 1.25rem;
-    }
-    .preview-cards {
-      display: flex;
-      flex-direction: column;
-      gap: 0.625rem;
-    }
-    .preview-card {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      padding: 0.75rem;
-      background: rgba(255, 255, 255, 0.025);
-      border: 1px solid var(--color-border);
-      border-radius: 8px;
-    }
-    .preview-card-icon {
       width: 32px;
       height: 32px;
       border-radius: 6px;
-      flex-shrink: 0;
+      background: rgba(255, 255, 255, 0.04);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--color-text-dim);
+      transition: all 0.2s;
     }
-    .preview-card-icon.gold { background: rgba(192, 160, 96, 0.2); }
-    .preview-card-icon.blue { background: rgba(123, 164, 192, 0.2); }
-    .preview-card-lines {
+    .preview-sidebar-item.active {
+      background: rgba(196, 165, 90, 0.12);
+      color: var(--color-gold);
+      border: 1px solid rgba(196, 165, 90, 0.2);
+    }
+    .preview-main {
       flex: 1;
+      padding: 1rem 1.25rem;
+      overflow: hidden;
+    }
+    .preview-list-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+    }
+    .preview-label {
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--color-gold);
+    }
+    .preview-game-badge {
+      font-size: 0.625rem;
+      font-weight: 600;
+      padding: 0.15rem 0.5rem;
+      border-radius: 100px;
+      background: rgba(123, 164, 192, 0.12);
+      color: var(--color-blue);
+      border: 1px solid rgba(123, 164, 192, 0.2);
+      letter-spacing: 0.03em;
+    }
+    .preview-mod-list {
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 0.375rem;
     }
-    .preview-line {
-      height: 8px;
-      background: rgba(255, 255, 255, 0.1);
+    .preview-mod {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.625rem;
+      padding: 0.5rem 0.625rem;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--color-border);
+      border-left: 2px solid var(--color-gold);
+      border-radius: 6px;
+      transition: opacity 0.3s var(--ease-out), border-color 0.2s;
+    }
+    .preview-mod.disabled {
+      opacity: 0.35;
+      border-left-color: var(--color-text-dim);
+    }
+    .preview-mod-order {
+      min-width: 22px;
+      height: 22px;
+      background: rgba(192, 160, 96, 0.12);
+      border: 1px solid rgba(192, 160, 96, 0.2);
       border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.625rem;
+      font-weight: 600;
+      color: var(--color-gold);
+      flex-shrink: 0;
+      margin-top: 1px;
     }
-    .preview-line.muted { background: rgba(255, 255, 255, 0.05); }
-    .preview-line.w35 { width: 35%; }
-    .preview-line.w40 { width: 40%; }
-    .preview-line.w45 { width: 45%; }
-    .preview-line.w50 { width: 50%; }
-    .preview-line.w55 { width: 55%; }
-    .preview-line.w60 { width: 60%; }
-    .preview-line.w65 { width: 65%; }
-    .preview-line.w70 { width: 70%; }
-    .preview-toggle {
-      width: 32px;
-      height: 18px;
-      border-radius: 9px;
-      background: rgba(255, 255, 255, 0.08);
+    .preview-mod-info {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+    }
+    .preview-mod-name {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--color-text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .preview-mod-author {
+      font-size: 0.625rem;
+      color: var(--color-text-dim);
+    }
+    .preview-mod-summary {
+      font-size: 0.625rem;
+      color: var(--color-text-muted);
+      line-height: 1.4;
+      overflow: hidden;
+      transition: max-height 0.3s var(--ease-out);
+    }
+    .preview-mod-reason {
+      font-size: 0.5625rem;
+      color: var(--color-gold);
+      font-style: italic;
+      line-height: 1.35;
+      overflow: hidden;
+      transition: max-height 0.4s var(--ease-out), opacity 0.4s var(--ease-out);
+    }
+    .preview-mod-actions {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0.25rem;
       flex-shrink: 0;
     }
-    .preview-toggle.on { background: rgba(192, 160, 96, 0.4); }
+    .preview-status {
+      font-size: 0.5625rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 0.125rem 0.375rem;
+      border-radius: 100px;
+    }
+    .preview-status--complete {
+      background: rgba(34, 197, 94, 0.12);
+      color: var(--color-success);
+      border: 1px solid rgba(34, 197, 94, 0.2);
+    }
+    .preview-status--pending {
+      background: rgba(234, 179, 8, 0.12);
+      color: var(--color-warning);
+      border: 1px solid rgba(234, 179, 8, 0.2);
+    }
+    .preview-toggle {
+      width: 24px;
+      height: 14px;
+      border-radius: 7px;
+      background: rgba(255, 255, 255, 0.08);
+      position: relative;
+      flex-shrink: 0;
+    }
+    .preview-toggle::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.2);
+      transition: transform 0.15s, background 0.15s;
+    }
+    .preview-toggle.on {
+      background: rgba(34, 197, 94, 0.25);
+    }
+    .preview-toggle.on::after {
+      transform: translateX(10px);
+      background: var(--color-success);
+    }
 
     /* ===== Sections ===== */
     .section {
@@ -978,6 +1090,9 @@ import { ApiService } from '../../core/services/api.service';
       }
       .hero-subtitle br { display: none; }
       .nav-links { display: none; }
+      .preview-sidebar { display: none; }
+      .preview-mod-summary,
+      .preview-mod-reason { display: none; }
     }
   `],
 })
@@ -987,14 +1102,75 @@ export class LandingComponent implements OnInit, OnDestroy, AfterViewInit {
   featuresVisible = signal(false);
   modlistsGenerated = signal('0');
   gamesSupported = signal('2');
+  previewProgress = signal(0);
+
+  readonly previewMods = [
+    { order: 1, name: 'Tamriel Stability Patch', author: 'NordicCodex', summary: 'Community-driven engine fix compilation.', reason: 'Essential foundation — fixes hundreds of engine bugs.', enabled: true, status: 'complete' },
+    { order: 2, name: 'Dragonstone UI', author: 'FrostUI Collective', summary: 'Clean, modern interface with config menus.', reason: 'Required by most mods for settings panels.', enabled: true, status: 'complete' },
+    { order: 3, name: 'Nordic Mesh Overhaul', author: 'StoneForge', summary: 'Improved 3D models for architecture and clutter.', reason: 'Matched to your GPU tier — low VRAM impact.', enabled: true, status: 'complete' },
+    { order: 4, name: 'Stormguard Combat', author: 'IronVeil', summary: 'Modernized melee with timed block system.', reason: 'Selected for Combat Overhaul playstyle.', enabled: true, status: 'complete' },
+    { order: 5, name: "Wanderer's Movement", author: 'DriftWorks', summary: 'Directional dodge, headtracking, target lock.', reason: 'Pairs with Stormguard for modern combat feel.', enabled: true, status: 'pending' },
+    { order: 6, name: 'Boreal Weathers', author: 'SkyCraft Studio', summary: 'Dynamic weather system with seasonal cycles.', reason: 'Lightweight weather mod — no ENB required.', enabled: true, status: 'pending' },
+    { order: 7, name: 'Hearthfire Lighting', author: 'EmberTech', summary: 'Hand-placed interior light sources overhaul.', reason: 'Best-in-class interior lighting for mid-tier GPUs.', enabled: true, status: 'pending' },
+    { order: 8, name: 'Runestone Perks', author: 'ArcaneSmith', summary: 'Redesigned perk trees with 400+ new perks.', reason: 'Adds depth to character progression.', enabled: true, status: 'pending' },
+    { order: 9, name: 'Whisper — Khajiit Companion', author: 'TaleSpinner', summary: 'Fully voiced companion with dynamic dialogue.', reason: 'Top-rated companion for immersive roleplay.', enabled: true, status: 'pending' },
+    { order: 10, name: 'Glacier ENB Preset', author: 'FrostByte', summary: 'Performance-tuned ENB for snowy landscapes.', reason: 'Optimized for 6GB+ VRAM — maintains 60fps.', enabled: false, status: 'pending' },
+  ];
+
+  visibleModCount = computed(() => {
+    const min = 4;
+    const max = this.previewMods.length;
+    return Math.round(min + (max - min) * this.previewProgress());
+  });
+
+  visibleMods = computed(() => this.previewMods.slice(0, this.visibleModCount()));
+
+  summaryHeight = computed(() => Math.round(18 * this.previewProgress()));
+
+  reasonHeight = computed(() => {
+    const p = this.previewProgress();
+    return p > 0.4 ? Math.round(16 * ((p - 0.4) / 0.6)) : 0;
+  });
+
+  reasonOpacity = computed(() => {
+    const p = this.previewProgress();
+    return p > 0.4 ? Math.min(1, (p - 0.4) / 0.3) : 0;
+  });
 
   private apiService = inject(ApiService);
 
   constructor(public authService: AuthService) {}
 
+  private rafPending = false;
+
   private scrollHandler = () => {
     this.scrolled.set(window.scrollY > 20);
+    if (!this.rafPending) {
+      this.rafPending = true;
+      requestAnimationFrame(() => {
+        this.updatePreviewProgress();
+        this.rafPending = false;
+      });
+    }
   };
+
+  private updatePreviewProgress(): void {
+    const previewEl = document.querySelector('.hero-preview') as HTMLElement;
+    if (!previewEl) return;
+    const rect = previewEl.getBoundingClientRect();
+    const vh = window.innerHeight;
+    const start = vh * 0.8;
+    const end = vh * 0.3;
+    const raw = (start - rect.top) / (start - end);
+    this.previewProgress.set(Math.max(0, Math.min(1, raw)));
+  }
+
+  modOpacity(order: number): number {
+    const count = this.visibleModCount();
+    if (order < count) return 1;
+    const fractional = 4 + (this.previewMods.length - 4) * this.previewProgress();
+    return Math.max(0, Math.min(1, fractional - Math.floor(fractional)));
+  }
 
   private observer?: IntersectionObserver;
 
