@@ -3,7 +3,7 @@
 
 # Set defaults
 export PORT="${PORT:-80}"
-API_URL="${API_URL:-http://localhost:8000/api}"
+API_URL="${API_URL:-/api}"
 
 # Substitute PORT into nginx config
 envsubst '${PORT}' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf

@@ -9,7 +9,7 @@ import { Modlist, DownloadStatus } from '../../shared/models/mod.model';
   providedIn: 'root',
 })
 export class ApiService {
-  private baseUrl = (window as any).__env?.API_URL || 'http://localhost:8000/api';
+  private baseUrl = (window as any).__env?.API_URL || '/api';
 
   constructor(private http: HttpClient) {}
 

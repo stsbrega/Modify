@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     debug: bool = False
 
     # CORS
-    cors_origins: str = "http://localhost:4200"
+    cors_origins: str = "http://localhost:4200,http://localhost"
 
     # Database
     database_url: str = "postgresql+asyncpg://modify:modify@localhost:5432/modify"
