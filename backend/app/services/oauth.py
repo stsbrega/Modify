@@ -1,6 +1,8 @@
 """OAuth provider abstraction for Google, Discord, and Apple sign-in."""
 
 import logging
+import time
+import uuid
 from dataclasses import dataclass
 
 import httpx
@@ -9,6 +11,45 @@ from authlib.integrations.httpx_client import AsyncOAuth2Client
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# OAuth state store (CSRF protection)
+# ---------------------------------------------------------------------------
+
+# In-memory state store: maps state -> (provider, created_at)
+# States expire after 10 minutes.
+_STATE_TTL_SECONDS = 600
+_oauth_states: dict[str, tuple[str, float]] = {}
+
+
+def create_oauth_state(provider: str) -> str:
+    """Generate and store a random OAuth state token for CSRF protection."""
+    _purge_expired_states()
+    state = str(uuid.uuid4())
+    _oauth_states[state] = (provider, time.time())
+    return state
+
+
+def validate_oauth_state(state: str, provider: str) -> bool:
+    """Validate and consume an OAuth state token. Returns True if valid."""
+    _purge_expired_states()
+    entry = _oauth_states.pop(state, None)
+    if entry is None:
+        return False
+    stored_provider, created_at = entry
+    if stored_provider != provider:
+        return False
+    if time.time() - created_at > _STATE_TTL_SECONDS:
+        return False
+    return True
+
+
+def _purge_expired_states() -> None:
+    """Remove expired entries from the state store."""
+    now = time.time()
+    expired = [k for k, (_, t) in _oauth_states.items() if now - t > _STATE_TTL_SECONDS]
+    for k in expired:
+        _oauth_states.pop(k, None)
 
 
 @dataclass
@@ -225,3 +266,8 @@ _PROVIDERS: dict[str, OAuthProvider] = {
 def get_oauth_provider(name: str) -> OAuthProvider | None:
     """Get an OAuth provider by name. Returns None if not found."""
     return _PROVIDERS.get(name)
+
+
+def get_configured_providers() -> list[str]:
+    """Return the names of all OAuth providers that are fully configured."""
+    return [name for name, p in _PROVIDERS.items() if p.is_configured()]

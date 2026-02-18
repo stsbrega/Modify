@@ -39,7 +39,12 @@ from app.services.auth import (
     verify_password,
 )
 from app.services.email import send_password_reset_email, send_verification_email
-from app.services.oauth import get_oauth_provider
+from app.services.oauth import (
+    create_oauth_state,
+    get_configured_providers,
+    get_oauth_provider,
+    validate_oauth_state,
+)
 from app.services.tier_classifier import classify_hardware_tier
 from app.api.deps import get_current_user
 
@@ -467,6 +472,12 @@ async def change_password(
 # ---------------------------------------------------------------------------
 
 
+@router.get("/oauth/providers")
+async def oauth_providers():
+    """Return a list of OAuth providers that are currently configured."""
+    return {"providers": get_configured_providers()}
+
+
 @router.get("/oauth/{provider}")
 async def oauth_authorize(provider: str):
     """Return the OAuth authorization URL for the given provider."""
@@ -483,26 +494,60 @@ async def oauth_authorize(provider: str):
             detail=f"OAuth provider '{provider}' is not configured",
         )
 
-    state = str(uuid.uuid4())
+    state = create_oauth_state(provider)
     url = oauth.get_authorization_url(state)
     return {"authorization_url": url, "state": state}
 
 
 @router.get("/oauth/{provider}/callback")
-async def oauth_callback(
+async def oauth_callback_get(
     provider: str,
     code: str,
     state: str | None = None,
-    response: Response = None,
     db: AsyncSession = Depends(get_db),
 ):
-    """Handle OAuth callback: exchange code, create/link account, redirect to frontend."""
+    """Handle OAuth callback via GET (Google, Discord)."""
+    return await _handle_oauth_callback(provider, code, state, db)
+
+
+@router.post("/oauth/{provider}/callback")
+async def oauth_callback_post(
+    provider: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Handle OAuth callback via POST (Apple uses response_mode=form_post)."""
+    form = await request.form()
+    code = form.get("code", "")
+    state = form.get("state")
+    if not code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing authorization code",
+        )
+    return await _handle_oauth_callback(provider, str(code), str(state) if state else None, db)
+
+
+async def _handle_oauth_callback(
+    provider: str,
+    code: str,
+    state: str | None,
+    db: AsyncSession,
+):
+    """Shared OAuth callback logic for both GET and POST handlers."""
     settings = get_settings()
     oauth = get_oauth_provider(provider)
     if oauth is None or not oauth.is_configured():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"OAuth provider '{provider}' not available",
+        )
+
+    # Validate state to prevent CSRF
+    if not state or not validate_oauth_state(state, provider):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired OAuth state",
         )
 
     try:
