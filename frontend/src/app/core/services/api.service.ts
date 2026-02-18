@@ -71,6 +71,13 @@ export class ApiService {
     return this.http.put(`${this.baseUrl}/settings/`, settings);
   }
 
+  // Stats (public)
+  getStats(): Observable<{ modlists_generated: number; games_supported: number }> {
+    return this.http.get<{ modlists_generated: number; games_supported: number }>(
+      `${this.baseUrl}/stats/`
+    );
+  }
+
   // Health
   healthCheck(): Observable<{ status: string; app: string }> {
     return this.http.get<{ status: string; app: string }>(`${this.baseUrl}/health`);

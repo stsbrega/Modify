@@ -1,7 +1,8 @@
-import { Component, signal, OnInit, OnDestroy, AfterViewInit } from '@angular/core';
+import { Component, signal, inject, OnInit, OnDestroy, AfterViewInit } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { trigger, transition, style, animate, query, stagger } from '@angular/animations';
 import { AuthService } from '../../core/services/auth.service';
+import { ApiService } from '../../core/services/api.service';
 
 @Component({
   selector: 'app-landing',
@@ -246,22 +247,12 @@ import { AuthService } from '../../core/services/auth.service';
     <section class="proof-bar">
       <div class="proof-container">
         <div class="proof-item">
-          <span class="proof-number">10,000+</span>
+          <span class="proof-number">{{ modlistsGenerated() }}</span>
           <span class="proof-label">Modlists Generated</span>
         </div>
         <div class="proof-divider"></div>
         <div class="proof-item">
-          <span class="proof-number">50,000+</span>
-          <span class="proof-label">Mods Indexed</span>
-        </div>
-        <div class="proof-divider"></div>
-        <div class="proof-item">
-          <span class="proof-number">99.2%</span>
-          <span class="proof-label">Compatibility Rate</span>
-        </div>
-        <div class="proof-divider"></div>
-        <div class="proof-item">
-          <span class="proof-number">2</span>
+          <span class="proof-number">{{ gamesSupported() }}</span>
           <span class="proof-label">Games Supported</span>
         </div>
       </div>
@@ -994,6 +985,10 @@ export class LandingComponent implements OnInit, OnDestroy, AfterViewInit {
   scrolled = signal(false);
   stepsVisible = signal(false);
   featuresVisible = signal(false);
+  modlistsGenerated = signal('0');
+  gamesSupported = signal('2');
+
+  private apiService = inject(ApiService);
 
   constructor(public authService: AuthService) {}
 
@@ -1006,6 +1001,14 @@ export class LandingComponent implements OnInit, OnDestroy, AfterViewInit {
   ngOnInit(): void {
     window.addEventListener('scroll', this.scrollHandler, { passive: true });
     this.scrollHandler();
+
+    this.apiService.getStats().subscribe({
+      next: (stats) => {
+        this.modlistsGenerated.set(stats.modlists_generated.toLocaleString());
+        this.gamesSupported.set(stats.games_supported.toString());
+      },
+      error: () => {},
+    });
   }
 
   ngAfterViewInit(): void {

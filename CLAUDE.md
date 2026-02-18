@@ -6,7 +6,7 @@ Modify is an AI-powered game modding assistant that generates personalized mod l
 
 ## Tech Stack
 
-- **Frontend**: Angular 19.2 (standalone components) + Tailwind CSS 4 + TypeScript 5.7
+- **Frontend**: Angular 19.2 (standalone components) + CSS custom properties + inline SCSS + TypeScript 5.7
 - **Backend**: Python 3.12 + FastAPI 0.115 + SQLAlchemy 2.0 + Pydantic 2
 - **Database**: PostgreSQL 16 (via asyncpg)
 - **Auth**: JWT (python-jose) + bcrypt (passlib) + OAuth (authlib) + email verification (fastapi-mail)
@@ -65,7 +65,7 @@ frontend/
     core/
       services/       # ApiService, AuthService, NotificationService, ThemeService
       interceptors/   # AuthInterceptor, ErrorInterceptor
-      guards/         # authGuard, guestGuard
+      guards/         # authGuard, guestGuard (both in auth.guard.ts)
     shared/
       components/     # header, notification-toast
       models/         # TypeScript interfaces (auth, game, mod, specs)
@@ -86,6 +86,21 @@ frontend/
 ```
 
 ## Common Commands
+
+### Quick Start (first time)
+
+```bash
+# 1. Backend setup (from backend/)
+cp .env.example .env                     # Configure env vars (defaults work for local dev)
+pip install -r requirements.txt
+# Ensure PostgreSQL is running (or use docker-compose up -d db)
+python -m app.seeds.run_seed             # Creates tables + seeds data
+uvicorn app.main:app --reload            # Backend on localhost:8000
+
+# 2. Frontend setup (from frontend/)
+npm install
+npm start                                # Frontend on localhost:4200
+```
 
 ### Backend (run from `backend/`)
 
@@ -120,6 +135,8 @@ docker-compose up -d                    # Start full stack
 
 **Note**: Backend Dockerfile hardcodes port 8080 (for Railway). docker-compose maps `8000:8080` for local dev. For development, use uvicorn directly (not Docker) on port 8000.
 
+**Note**: Google Fonts CSS2 API — use simple weight syntax (`DM+Sans:wght@300;400;500;600;700`), not variable font axis syntax (`ital,opsz,wght@...`) which returns 400 errors during Angular font inlining.
+
 ## Code Conventions
 
 ### Backend
@@ -128,6 +145,7 @@ docker-compose up -d                    # Start full stack
 - Models in `models/`, Pydantic schemas in `schemas/`, business logic in `services/`
 - API routes prefixed with `/api/`
 - Environment config via `.env` file (see `backend/.env.example`)
+- Required env vars: `DATABASE_URL`, `SECRET_KEY`. Optional groups: LLM provider (Ollama default, no key needed), Nexus API, SMTP email, OAuth (Google/Discord/Apple), custom mod source
 - Settings are per-user in the `user_settings` PostgreSQL table (requires authentication)
 - LLM modlist generation falls back to curated DB mods if LLM call fails
 
@@ -137,9 +155,11 @@ docker-compose up -d                    # Start full stack
 - Feature-based folder organization under `features/`
 - Shared reusable components under `shared/components/`
 - Core singleton services under `core/services/`
-- Tailwind CSS for styling; SCSS for component-level styles
+- CSS custom properties (design tokens in `styles.scss`) for theming; inline SCSS for component styles
+- Fonts: DM Sans (body) + Playfair Display (headings) loaded via Google Fonts in `index.html`
 - Models defined as TypeScript interfaces in `shared/models/`
 - API base URL: reads `window.__env.API_URL` (Docker) with fallback to `http://localhost:8000/api`
+- Route auth: browse, setup, downloads are public; dashboard and settings require `authGuard`; modlist generation checks auth in `playstyle-select` component and redirects to register
 
 ## API Endpoints
 
