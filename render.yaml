@@ -11,7 +11,7 @@ services:
   - type: web
     name: moddersomni-api
     runtime: python
-    plan: free
+    plan: starter
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: "sh -c 'export DATABASE_URL=$(echo $DATABASE_URL_RAW | sed s/^postgres:/postgresql+asyncpg:/ | sed s/^postgresql:/postgresql+asyncpg:/) && uvicorn app.main:app --host 0.0.0.0 --port $PORT'"
