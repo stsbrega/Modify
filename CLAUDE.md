@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Modify is an AI-powered game modding assistant that generates personalized mod lists based on hardware specs and gameplay preferences. It targets Skyrim SE/AE and Fallout 4.
+ModdersOmni is an AI-powered game modding assistant that generates personalized mod lists based on hardware specs and gameplay preferences. It targets Skyrim SE/AE and Fallout 4.
 
 ## Tech Stack
 

@@ -1,6 +1,6 @@
 ---
 name: Feature Request
-about: Suggest a feature for Modify
+about: Suggest a feature for ModdersOmni
 title: '[FEATURE] '
 labels: enhancement
 assignees: ''

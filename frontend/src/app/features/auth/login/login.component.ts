@@ -12,9 +12,9 @@ import { NotificationService } from '../../../core/services/notification.service
     <div class="auth-page">
       <div class="auth-card">
         <div class="auth-header">
-          <div class="logo-mark">M</div>
+          <div class="logo-mark">MO</div>
           <h1>Welcome back</h1>
-          <p>Sign in to your Modify account</p>
+          <p>Sign in to your ModdersOmni account</p>
         </div>
 
         <form (ngSubmit)="onSubmit()" class="auth-form">

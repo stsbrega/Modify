@@ -4,7 +4,7 @@ from functools import lru_cache
 
 class Settings(BaseSettings):
     # App
-    app_name: str = "Modify"
+    app_name: str = "ModdersOmni"
     debug: bool = False
 
     # CORS
@@ -50,8 +50,8 @@ class Settings(BaseSettings):
     smtp_port: int = 587
     smtp_user: str = ""
     smtp_password: str = ""
-    smtp_from_email: str = "noreply@modify.app"
-    smtp_from_name: str = "Modify"
+    smtp_from_email: str = "noreply@moddersomni.com"
+    smtp_from_name: str = "ModdersOmni"
     smtp_use_tls: bool = True
     email_verification_expire_hours: int = 24
 

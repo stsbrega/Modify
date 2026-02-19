@@ -31,8 +31,8 @@ import { ApiService } from '../../core/services/api.service';
     <nav class="navbar" [class.scrolled]="scrolled()">
       <div class="nav-container">
         <a routerLink="/" class="nav-logo">
-          <span class="nav-logo-mark">M</span>
-          <span class="nav-logo-text">Modify</span>
+          <span class="nav-logo-mark">MO</span>
+          <span class="nav-logo-text">ModdersOmni</span>
         </a>
         <div class="nav-links">
           <a href="#features" class="nav-link" (click)="scrollTo($event, 'features')">Features</a>
@@ -92,7 +92,7 @@ import { ApiService } from '../../core/services/api.service';
             <div class="preview-dots">
               <span></span><span></span><span></span>
             </div>
-            <span class="preview-title">Modify — Skyrim AE Loadout</span>
+            <span class="preview-title">ModdersOmni — Skyrim AE Loadout</span>
             <span class="preview-mod-count">{{ visibleModCount() }} mods</span>
           </div>
           <div class="preview-body">
@@ -289,15 +289,15 @@ import { ApiService } from '../../core/services/api.service';
     <footer class="footer">
       <div class="footer-container">
         <div class="footer-brand">
-          <span class="nav-logo-mark">M</span>
-          <span class="footer-text">Modify</span>
+          <span class="nav-logo-mark">MO</span>
+          <span class="footer-text">ModdersOmni</span>
         </div>
         <div class="footer-links">
           <a routerLink="/dashboard">Dashboard</a>
           <a routerLink="/browse">Browse Mods</a>
           <a routerLink="/settings">Settings</a>
         </div>
-        <p class="footer-copy">&copy; 2026 Modify. Open source under GPL-3.0.</p>
+        <p class="footer-copy">&copy; 2026 ModdersOmni. Open source under GPL-3.0.</p>
       </div>
     </footer>
   `,
