@@ -1,6 +1,6 @@
 databases:
   - name: moddersomni-db
-    plan: free
+    plan: starter
     databaseName: modify
     user: modify
     postgresMajorVersion: 16
