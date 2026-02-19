@@ -1,6 +1,6 @@
 ---
 name: Bug Report
-about: Report a bug to help us improve Modify
+about: Report a bug to help us improve ModdersOmni
 title: '[BUG] '
 labels: bug
 assignees: ''
@@ -24,7 +24,7 @@ If applicable, add screenshots.
 **Environment:**
 - OS: [e.g. Windows 11]
 - Browser: [e.g. Chrome 120]
-- Modify Version: [e.g. 0.1.0]
+- ModdersOmni Version: [e.g. 0.1.0]
 
 **Additional context**
 Any other context about the problem.

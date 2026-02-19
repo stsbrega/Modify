@@ -15,7 +15,7 @@ export interface User {
   email_verified: boolean;
   display_name?: string;
   avatar_url?: string;
-  auth_provider: 'local' | 'google' | 'discord' | 'apple';
+  auth_provider: 'local' | 'google' | 'discord';
   hardware?: UserHardware;
 }
 

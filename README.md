@@ -1,10 +1,10 @@
-# Modify
+# ModdersOmni
 
 AI-powered video game mod manager that analyzes your PC hardware and builds custom, stable modlists tailored to your playstyle.
 
 ## Features
 
-- **Hardware-Aware Modlists** - Paste your PC specs and Modify classifies your hardware tier to recommend mods your system can handle
+- **Hardware-Aware Modlists** - Paste your PC specs and ModdersOmni classifies your hardware tier to recommend mods your system can handle
 - **Playstyle Presets** - Choose from popular playstyles (Survival, Combat Overhaul, Visual Enhancement, etc.) and get a curated modlist
 - **AI-Powered Curation** - Uses open-source LLMs (local via Ollama or free cloud APIs) to generate compatible, conflict-free modlists
 - **Nexus Mods Integration** - Search, browse, and download mods directly via the Nexus Mods API
@@ -74,7 +74,7 @@ ng serve
 
 ## LLM Configuration
 
-Modify supports multiple LLM providers. Choose one based on your setup:
+ModdersOmni supports multiple LLM providers. Choose one based on your setup:
 
 | Provider | Cost | Requirements | Model |
 |----------|------|-------------|-------|

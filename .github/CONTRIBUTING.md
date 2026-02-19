@@ -1,6 +1,6 @@
-# Contributing to Modify
+# Contributing to ModdersOmni
 
-Thanks for your interest in contributing to Modify!
+Thanks for your interest in contributing to ModdersOmni!
 
 ## Getting Started
 

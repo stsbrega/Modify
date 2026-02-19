@@ -1,7 +1,6 @@
 """Authentication API routes."""
 
 import logging
-import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
@@ -39,7 +38,12 @@ from app.services.auth import (
     verify_password,
 )
 from app.services.email import send_password_reset_email, send_verification_email
-from app.services.oauth import get_oauth_provider
+from app.services.oauth import (
+    create_oauth_state,
+    get_configured_providers,
+    get_oauth_provider,
+    validate_oauth_state,
+)
 from app.services.tier_classifier import classify_hardware_tier
 from app.api.deps import get_current_user
 
@@ -467,6 +471,12 @@ async def change_password(
 # ---------------------------------------------------------------------------
 
 
+@router.get("/oauth/providers")
+async def oauth_providers():
+    """Return a list of OAuth providers that are currently configured."""
+    return {"providers": get_configured_providers()}
+
+
 @router.get("/oauth/{provider}")
 async def oauth_authorize(provider: str):
     """Return the OAuth authorization URL for the given provider."""
@@ -483,7 +493,7 @@ async def oauth_authorize(provider: str):
             detail=f"OAuth provider '{provider}' is not configured",
         )
 
-    state = str(uuid.uuid4())
+    state = create_oauth_state(provider)
     url = oauth.get_authorization_url(state)
     return {"authorization_url": url, "state": state}
 
@@ -493,7 +503,6 @@ async def oauth_callback(
     provider: str,
     code: str,
     state: str | None = None,
-    response: Response = None,
     db: AsyncSession = Depends(get_db),
 ):
     """Handle OAuth callback: exchange code, create/link account, redirect to frontend."""
@@ -503,6 +512,13 @@ async def oauth_callback(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"OAuth provider '{provider}' not available",
+        )
+
+    # Validate state to prevent CSRF
+    if not state or not validate_oauth_state(state, provider):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired OAuth state",
         )
 
     try:

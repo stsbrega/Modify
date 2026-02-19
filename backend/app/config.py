@@ -4,7 +4,7 @@ from functools import lru_cache
 
 class Settings(BaseSettings):
     # App
-    app_name: str = "Modify"
+    app_name: str = "ModdersOmni"
     debug: bool = False
 
     # CORS
@@ -50,8 +50,8 @@ class Settings(BaseSettings):
     smtp_port: int = 587
     smtp_user: str = ""
     smtp_password: str = ""
-    smtp_from_email: str = "noreply@modify.app"
-    smtp_from_name: str = "Modify"
+    smtp_from_email: str = "noreply@moddersomni.com"
+    smtp_from_name: str = "ModdersOmni"
     smtp_use_tls: bool = True
     email_verification_expire_hours: int = 24
 
@@ -64,13 +64,6 @@ class Settings(BaseSettings):
     discord_client_id: str = ""
     discord_client_secret: str = ""
     discord_redirect_uri: str = "http://localhost:8000/api/auth/oauth/discord/callback"
-
-    # OAuth - Apple
-    apple_client_id: str = ""
-    apple_team_id: str = ""
-    apple_key_id: str = ""
-    apple_private_key: str = ""
-    apple_redirect_uri: str = "http://localhost:8000/api/auth/oauth/apple/callback"
 
     # Frontend URL (for email links and OAuth redirects)
     frontend_url: str = "http://localhost:4200"

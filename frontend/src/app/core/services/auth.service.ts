@@ -1,7 +1,7 @@
 import { Injectable, signal, computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { Observable, tap } from 'rxjs';
+import { map, Observable, tap } from 'rxjs';
 import {
   User,
   TokenResponse,
@@ -130,7 +130,13 @@ export class AuthService {
 
   // --- OAuth ---
 
-  oauthLogin(provider: 'google' | 'discord' | 'apple'): void {
+  getOAuthProviders(): Observable<string[]> {
+    return this.http
+      .get<{ providers: string[] }>(`${this.baseUrl}/auth/oauth/providers`)
+      .pipe(map((res) => res.providers));
+  }
+
+  oauthLogin(provider: 'google' | 'discord'): void {
     this.http
       .get<{ authorization_url: string }>(`${this.baseUrl}/auth/oauth/${provider}`)
       .subscribe({

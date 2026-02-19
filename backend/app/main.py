@@ -58,7 +58,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Modify API",
+    title="ModdersOmni API",
     description="AI-powered video game mod manager API",
     version="0.1.0",
     lifespan=lifespan,

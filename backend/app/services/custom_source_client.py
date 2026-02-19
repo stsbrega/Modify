@@ -2,7 +2,7 @@
 
 This client accepts a user-provided API endpoint and key,
 and normalizes responses from various mod hosting APIs
-into a common format used by Modify.
+into a common format used by ModdersOmni.
 """
 import logging
 

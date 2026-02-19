@@ -10,8 +10,8 @@ import { AuthService } from '../../../core/services/auth.service';
     <header class="header">
       <div class="header-content">
         <a routerLink="/" class="logo">
-          <span class="logo-mark">M</span>
-          <span class="logo-text">Modify</span>
+          <span class="logo-mark">MO</span>
+          <span class="logo-text">ModdersOmni</span>
         </a>
         <nav class="nav">
           <a routerLink="/dashboard" routerLinkActive="active" class="nav-link">Dashboard</a>

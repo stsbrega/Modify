@@ -71,14 +71,14 @@ async def send_verification_email(to: str, token: str) -> None:
     settings = get_settings()
     verify_url = f"{settings.frontend_url}/auth/verify-email?token={token}"
     html = f"""
-    <h2>Verify your email for Modify</h2>
+    <h2>Verify your email for ModdersOmni</h2>
     <p>Click the link below to verify your email address:</p>
     <p><a href="{verify_url}">{verify_url}</a></p>
     <p>This link expires in {settings.email_verification_expire_hours} hours.</p>
     <p>If you didn't create an account, you can ignore this email.</p>
     """
     sender = get_email_sender()
-    await sender.send_email(to, "Verify your email — Modify", html)
+    await sender.send_email(to, "Verify your email — ModdersOmni", html)
 
 
 async def send_password_reset_email(to: str, token: str) -> None:
@@ -93,4 +93,4 @@ async def send_password_reset_email(to: str, token: str) -> None:
     <p>If you didn't request this, you can ignore this email.</p>
     """
     sender = get_email_sender()
-    await sender.send_email(to, "Reset your password — Modify", html)
+    await sender.send_email(to, "Reset your password — ModdersOmni", html)
