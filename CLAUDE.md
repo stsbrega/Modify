@@ -22,13 +22,14 @@ ModdersOmni is an AI-powered game modding assistant that generates personalized 
 backend/
   app/
     api/              # FastAPI route handlers
-      auth.py         #   /auth/* — register, login, OAuth, email verify, password reset
+      auth.py         #   /auth/* — register, login, OAuth, email verify, password reset, change password
       deps.py         #   JWT dependency injection (get_current_user, require_verified_email)
       games.py        #   GET /games/, GET /games/{game_id}/playstyles
       specs.py        #   POST /specs/parse
-      modlist.py      #   POST /modlist/generate, GET /modlist/{modlist_id}
+      modlist.py      #   POST /modlist/generate, GET /modlist/{modlist_id}, GET /modlist/mine
       downloads.py    #   POST /downloads/start, GET /downloads/{id}/status, WS /downloads/{id}/ws
       settings.py     #   GET /settings/, PUT /settings/ (requires auth)
+      stats.py        #   GET /stats/ — landing page metrics
     models/           # SQLAlchemy ORM models
       user.py         #   User (auth, profile, hardware specs)
       user_settings.py#   UserSettings (per-user preferences)
@@ -40,11 +41,11 @@ backend/
       modlist.py      #   ModList
       compatibility.py#   CompatibilityRule
       playstyle_mod.py#   PlaystyleMod (junction table)
-    schemas/          # Pydantic request/response schemas (auth, game, modlist, specs)
+    schemas/          # Pydantic request/response schemas (auth, game, modlist, specs, stats)
     services/         # Business logic
       auth.py         #   JWT creation/validation, password hashing, token management
       email.py        #   SMTP email sending (verification, password reset)
-      oauth.py        #   OAuth provider abstraction (Google, Discord, Apple)
+      oauth.py        #   OAuth provider abstraction (Google, Discord)
       spec_parser.py  #   Hardware text parsing (regex-based)
       tier_classifier.py # GPU/CPU tier classification (low/mid/high/ultra)
       modlist_generator.py # LLM-powered mod list generation (with DB fallback)
@@ -144,7 +145,7 @@ Infrastructure is defined in `render.yaml` (Blueprint). Push to GitHub and deplo
 - Models in `models/`, Pydantic schemas in `schemas/`, business logic in `services/`
 - API routes prefixed with `/api/`
 - Environment config via `.env` file (see `backend/.env.example`)
-- Required env vars: `DATABASE_URL`, `SECRET_KEY`. Optional groups: LLM provider (Ollama default, no key needed), Nexus API, SMTP email, OAuth (Google/Discord/Apple), custom mod source
+- Required env vars: `DATABASE_URL`, `SECRET_KEY`. Optional groups: LLM provider (Ollama default, no key needed), Nexus API, SMTP email, OAuth (Google/Discord), custom mod source
 - Settings are per-user in the `user_settings` PostgreSQL table (requires authentication)
 - LLM modlist generation falls back to curated DB mods if LLM call fails
 
@@ -163,10 +164,12 @@ Infrastructure is defined in `render.yaml` (Blueprint). Push to GitHub and deplo
 ## API Endpoints
 
 - `GET  /api/health` — Health check
+- `GET  /api/stats/` — Landing page statistics (modlists generated, games supported)
 - `GET  /api/games/` — List supported games
 - `GET  /api/games/{game_id}/playstyles` — Playstyles for a game
 - `POST /api/specs/parse` — Parse hardware specs text
 - `POST /api/modlist/generate` — Generate AI-powered mod list
+- `GET  /api/modlist/mine` — Get current user's mod lists (auth required)
 - `GET  /api/modlist/{modlist_id}` — Retrieve mod list
 - `POST /api/downloads/start` — Start downloading mods
 - `GET  /api/downloads/{modlist_id}/status` — Download progress
@@ -182,9 +185,12 @@ Infrastructure is defined in `render.yaml` (Blueprint). Push to GitHub and deplo
 - `GET  /api/auth/me/hardware` — Get saved hardware specs
 - `PUT  /api/auth/me/hardware` — Save hardware specs
 - `POST /api/auth/verify-email` — Verify email with token
+- `POST /api/auth/resend-verification` — Resend email verification (auth required)
 - `POST /api/auth/forgot-password` — Request password reset email
 - `POST /api/auth/reset-password` — Reset password with token
-- `GET  /api/auth/oauth/{provider}` — Start OAuth flow (google/discord/apple)
+- `POST /api/auth/change-password` — Change password (auth required)
+- `GET  /api/auth/oauth/providers` — List configured OAuth providers
+- `GET  /api/auth/oauth/{provider}` — Start OAuth flow (google/discord)
 - `GET  /api/auth/oauth/{provider}/callback` — OAuth callback
 
 ## CI/CD
