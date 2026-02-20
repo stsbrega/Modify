@@ -209,6 +209,107 @@ Render auto-deploys from `main` branch on push. Blueprint (`render.yaml`) define
 
 Community files: `.github/CONTRIBUTING.md`, `.github/ISSUE_TEMPLATE/` (bug_report, feature_request)
 
+## Google OAuth 2.0 Reference
+
+This section documents the Google OAuth 2.0 Authorization Code flow as implemented in this project. The app uses `authlib` (not Google's client library) to interact directly with Google's OAuth 2.0 protocol endpoints.
+
+### Our OAuth Flow (step by step)
+
+1. **Frontend** calls `GET /api/auth/oauth/google` → backend generates a random `state` token (UUID, stored in-memory with 10-min TTL), builds the authorization URL, returns `{ authorization_url, state }`.
+2. **Frontend** redirects the user's browser to Google's authorization endpoint.
+3. **Google** prompts the user for consent, then redirects back to our **backend** callback URL with `?code=...&state=...`.
+4. **Backend** (`GET /api/auth/oauth/google/callback`) validates `state` against the in-memory store (CSRF protection), then exchanges the `code` for tokens by POSTing to Google's token endpoint.
+5. **Backend** uses the access token to fetch user info from Google's userinfo endpoint.
+6. **Backend** creates or links the user account, issues our own JWT + refresh token, then **redirects** to `{FRONTEND_URL}/auth/callback?token={access_token}` (with refresh token set as an HTTP cookie).
+7. **Frontend** `AuthCallbackComponent` extracts the `token` query param, saves it via `AuthService`, loads the user profile, and navigates to `/dashboard`.
+
+### Google OAuth 2.0 Endpoints
+
+| Purpose | URL |
+|---------|-----|
+| Authorization | `https://accounts.google.com/o/oauth2/v2/auth` |
+| Token exchange | `https://oauth2.googleapis.com/token` |
+| User info | `https://www.googleapis.com/oauth2/v3/userinfo` |
+| Token revocation | `https://oauth2.googleapis.com/revoke` |
+
+### Authorization Request Parameters
+
+| Parameter | Required | Our Value / Notes |
+|-----------|----------|-------------------|
+| `client_id` | **Yes** | From `GOOGLE_CLIENT_ID` env var. Configured in [Google Cloud Console → Clients](https://console.developers.google.com/auth/clients). |
+| `redirect_uri` | **Yes** | Must **exactly match** one of the authorized redirect URIs registered in the Google Cloud Console (scheme, case, trailing slash all matter). See Redirect URI Rules below. |
+| `response_type` | **Yes** | `code` (authorization code flow). |
+| `scope` | **Yes** | `openid email profile` — we only need basic identity info, not access to Google APIs. |
+| `state` | **Recommended** | Random UUID for CSRF protection. Our backend stores it in-memory with a 10-min TTL and validates on callback. |
+| `access_type` | Recommended | We do **not** currently set this (defaults to `online`). Set to `offline` if we ever need Google refresh tokens. |
+| `prompt` | Optional | Not currently set. Use `consent` to force re-consent, `select_account` to force account chooser. |
+| `login_hint` | Optional | Not currently set. Can pass an email to pre-fill the sign-in form. |
+| `include_granted_scopes` | Optional | Not currently set. Set to `true` to enable incremental authorization (scopes accumulate across grants). |
+
+### Token Exchange Parameters (POST to token endpoint)
+
+| Field | Value |
+|-------|-------|
+| `client_id` | `GOOGLE_CLIENT_ID` |
+| `client_secret` | `GOOGLE_CLIENT_SECRET` |
+| `code` | The authorization code from the callback query string |
+| `grant_type` | `authorization_code` |
+| `redirect_uri` | Must match the one used in the authorization request |
+
+Successful response returns `{ access_token, expires_in, token_type, scope }` (plus `refresh_token` if `access_type=offline` was set on the initial request).
+
+### Redirect URI Configuration
+
+| Environment | Redirect URI | Set In |
+|-------------|-------------|--------|
+| Local dev | `http://localhost:8000/api/auth/oauth/google/callback` | `config.py` default |
+| Production | `https://moddersomni-api.onrender.com/api/auth/oauth/google/callback` | `render.yaml` (`GOOGLE_REDIRECT_URI`) |
+
+**Both** URIs must be registered as authorized redirect URIs in the [Google Cloud Console → Clients page](https://console.developers.google.com/auth/clients).
+
+### Redirect URI Validation Rules (Google-enforced)
+
+- **HTTPS required** — except `localhost` URIs which may use HTTP.
+- **Exact match** — scheme, host, port, path, case, and trailing slash must all match exactly.
+- **No raw IP addresses** — except `localhost` IPs.
+- **No wildcards** (`*`), no fragments (`#`), no path traversals (`/..`), no userinfo (`user@`).
+- **No URL shortener domains** (e.g., `goo.gl`).
+- **Host TLD** must be on the [public suffix list](https://publicsuffix.org/list/).
+- **Cannot be** `googleusercontent.com`.
+- **No open redirects** in query parameters.
+
+### Common Google OAuth Errors
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `redirect_uri_mismatch` | The `redirect_uri` sent in the auth request doesn't exactly match any URI registered in Google Cloud Console. | Verify scheme (http vs https), exact path, trailing slashes. Check both local and production URIs are registered. |
+| `invalid_client` | Wrong client secret. | Re-check `GOOGLE_CLIENT_SECRET` env var matches the Cloud Console value. Client secrets are only shown once at creation; can't be re-viewed. |
+| `invalid_grant` | Authorization code is expired, already used, or tokens were revoked. | Restart the OAuth flow from the beginning. Codes are single-use and short-lived. |
+| `deleted_client` | OAuth client was deleted (manually or auto-cleanup for unused clients). | Restore within 30 days from Cloud Console, or create a new client. |
+| `admin_policy_enforced` | Google Workspace admin has blocked the app or specific scopes. | Contact the Workspace admin to allowlist the OAuth client ID. |
+| `disallowed_useragent` | Auth endpoint opened in an embedded webview (e.g., iOS WKWebView). | Open in the default system browser instead. |
+| `org_internal` | OAuth client is set to "Internal" user type, blocking external Google accounts. | Change to "External" in Cloud Console → OAuth consent screen, or the user must be in the same Google Cloud org. |
+| `access_denied` | User declined the consent prompt. | Handle gracefully in UI — show a message and let the user retry. |
+| `invalid_request` | Malformed request, missing required params, or unsupported auth method. | Verify all required parameters are present and correctly formatted. |
+
+### Google Cloud Console Setup Checklist
+
+1. Go to [Google Cloud Console → APIs & Services → Clients](https://console.developers.google.com/auth/clients).
+2. Create an OAuth 2.0 Client ID with application type **Web application**.
+3. Add **both** redirect URIs (local + production) to the authorized redirect URIs list.
+4. Copy the `Client ID` and `Client Secret` — the secret is only shown once.
+5. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in your `.env` (local) or Render dashboard (production, `sync: false`).
+6. Ensure the OAuth consent screen is configured (app name, support email, authorized domains).
+7. For production with external users: submit for verification if using sensitive/restricted scopes (our `openid email profile` scopes are non-sensitive).
+
+### Token & Session Notes
+
+- We do **not** store Google tokens — we only use them transiently to fetch the user's profile during the callback, then issue our own JWT.
+- Google access tokens expire in ~1 hour. Since we don't store them, this doesn't affect us.
+- Google refresh tokens (if `access_type=offline` were used) are only returned on the **first** authorization. Subsequent authorizations return only access tokens unless `prompt=consent` forces re-consent.
+- Our in-memory OAuth state store (`_oauth_states` dict in `services/oauth.py`) is **not shared across backend instances**. If running multiple backend replicas, replace with a shared store (Redis, database).
+- The frontend callback route is `/auth/callback` — this is an Angular route, not registered with Google. Google only redirects to the **backend** callback URI.
+
 ## Content Filtering Note
 
 When generating code or text related to custom mod sources, use generic terms like "custom mod source" or "Custom API Source" rather than naming specific adult content sites. The Anthropic API will block responses containing explicit site references.
