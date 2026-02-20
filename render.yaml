@@ -26,9 +26,9 @@ services:
       - key: SECRET_KEY
         generateValue: true
       - key: CORS_ORIGINS
-        sync: false # Set after deploy: https://moddersomni-web.onrender.com
+        value: "https://moddersomni-web.onrender.com"
       - key: FRONTEND_URL
-        sync: false # Set after deploy: https://moddersomni-web.onrender.com
+        value: "https://moddersomni-web.onrender.com"
       - key: LLM_PROVIDER
         value: groq
       - key: GROQ_API_KEY
@@ -40,15 +40,15 @@ services:
       - key: GOOGLE_CLIENT_SECRET
         sync: false
       - key: GOOGLE_REDIRECT_URI
-        sync: false
+        value: "https://moddersomni-api.onrender.com/api/auth/oauth/google/callback"
       - key: DISCORD_CLIENT_ID
         sync: false
       - key: DISCORD_CLIENT_SECRET
         sync: false
       - key: DISCORD_REDIRECT_URI
-        sync: false
+        value: "https://moddersomni-api.onrender.com/api/auth/oauth/discord/callback"
       - key: SMTP_HOST
-        sync: false
+        value: "smtp.gmail.com"
       - key: SMTP_PORT
         value: "587"
       - key: SMTP_USER
@@ -73,4 +73,4 @@ services:
         value: public, max-age=31536000, immutable
     envVars:
       - key: API_URL
-        sync: false # Set after deploy: https://moddersomni-api.onrender.com/api
+        value: "https://moddersomni-api.onrender.com/api"
