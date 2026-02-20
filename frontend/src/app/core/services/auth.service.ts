@@ -93,13 +93,19 @@ export class AuthService {
   // --- Profile ---
 
   loadProfile(): void {
-    this.http.get<User>(`${this.baseUrl}/auth/me`).subscribe({
-      next: (user) => this._user.set(user),
-      error: () => {
-        this.clearAccessToken();
-        this._user.set(null);
-      },
-    });
+    this.loadProfileAsync().subscribe();
+  }
+
+  loadProfileAsync(): Observable<User> {
+    return this.http.get<User>(`${this.baseUrl}/auth/me`).pipe(
+      tap({
+        next: (user) => this._user.set(user),
+        error: () => {
+          this.clearAccessToken();
+          this._user.set(null);
+        },
+      }),
+    );
   }
 
   updateProfile(data: { display_name?: string; avatar_url?: string }): Observable<User> {
