@@ -6,7 +6,7 @@ ModdersOmni is an AI-powered game modding assistant that generates personalized 
 
 ## Tech Stack
 
-- **Frontend**: Angular 19.2 (standalone components) + CSS custom properties + inline SCSS + TypeScript 5.7
+- **Frontend**: Angular 19.2 (standalone components) + Tailwind CSS 4 + CSS custom properties + inline SCSS + TypeScript 5.7
 - **Backend**: Python 3.12 + FastAPI 0.115 + SQLAlchemy 2.0 + Pydantic 2
 - **Database**: PostgreSQL 16 (via asyncpg)
 - **Auth**: JWT (python-jose) + bcrypt (passlib) + OAuth (authlib) + email verification (fastapi-mail)
@@ -23,7 +23,7 @@ backend/
   app/
     api/              # FastAPI route handlers
       auth.py         #   /auth/* — register, login, OAuth, email verify, password reset, change password
-      deps.py         #   JWT dependency injection (get_current_user, require_verified_email)
+      deps.py         #   JWT dependency injection (get_current_user, get_current_user_optional, require_verified_email)
       games.py        #   GET /games/, GET /games/{game_id}/playstyles
       specs.py        #   POST /specs/parse
       modlist.py      #   POST /modlist/generate, GET /modlist/{modlist_id}, GET /modlist/mine
@@ -57,8 +57,8 @@ backend/
     config.py         # Settings via pydantic-settings
     database.py       # SQLAlchemy async engine setup
     main.py           # FastAPI app entry point
-  alembic/            # Migration config (versions/ is empty)
-  tests/              # pytest + pytest-asyncio (SQLite in-memory test DB)
+  alembic/            # Migration config (no versions/ dir yet — seed uses create_all)
+  tests/              # pytest + pytest-asyncio (file-based SQLite via aiosqlite)
   .env.example        # Environment variable reference
 
 frontend/
@@ -108,6 +108,7 @@ npm start                                # Frontend on localhost:4200 (proxies /
 pip install -r requirements.txt        # Install dependencies
 uvicorn app.main:app --reload           # Dev server (localhost:8000)
 pytest tests/ -v                        # Run tests
+# Note: tests require aiosqlite (pip install aiosqlite) — not yet in requirements.txt
 ruff check app/                         # Lint
 black app/                              # Format
 mypy app/ --ignore-missing-imports --no-strict-optional  # Type check
@@ -126,12 +127,17 @@ npm test                                # Run Karma/Jasmine tests
 
 ### Deployment (Render)
 
+#### Production URLs
+- **Frontend**: `https://moddersomni-web.onrender.com`
+- **Backend API**: `https://moddersomni-api.onrender.com/api`
+- **OAuth callbacks**: `https://moddersomni-api.onrender.com/api/auth/oauth/{provider}/callback`
+
 Infrastructure is defined in `render.yaml` (Blueprint). Push to GitHub and deploy via Render dashboard → Blueprints → New Blueprint Instance.
 
 - **Backend**: Python 3.12 native runtime. Render provides `PORT` env var. Start command transforms Render's `postgres://` URL to `postgresql+asyncpg://` format.
 - **Frontend**: Static site. Build command generates `public/env-config.js` with `API_URL` before Angular build. SPA routing handled by Render rewrite rules.
 - **Database**: Render managed PostgreSQL 16. Pre-deploy command runs `python -m app.seeds.run_seed`.
-- **Env vars marked `sync: false`** must be set manually in Render dashboard after first deploy: `CORS_ORIGINS`, `FRONTEND_URL`, `API_URL`, API keys, OAuth secrets.
+- **Env vars marked `sync: false`** must be set manually in Render dashboard after first deploy: `GROQ_API_KEY`, `NEXUS_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `SMTP_USER`, `SMTP_PASSWORD`. All other env vars (URLs, redirect URIs, SMTP host) are hardcoded in `render.yaml` and auto-fill on deploy.
 
 **Note**: Ollama (local LLM) does not work on Render — use a cloud provider (Groq, Together AI, etc.).
 
@@ -145,7 +151,7 @@ Infrastructure is defined in `render.yaml` (Blueprint). Push to GitHub and deplo
 - Models in `models/`, Pydantic schemas in `schemas/`, business logic in `services/`
 - API routes prefixed with `/api/`
 - Environment config via `.env` file (see `backend/.env.example`)
-- Required env vars: `DATABASE_URL`, `SECRET_KEY`. Optional groups: LLM provider (Ollama default, no key needed), Nexus API, SMTP email, OAuth (Google/Discord), custom mod source
+- Key env vars (have local-dev defaults in `config.py`): `DATABASE_URL`, `SECRET_KEY`. Optional groups: LLM provider (Ollama default, no key needed), Nexus API, SMTP email, OAuth (Google/Discord), custom mod source
 - Settings are per-user in the `user_settings` PostgreSQL table (requires authentication)
 - LLM modlist generation falls back to curated DB mods if LLM call fails
 
@@ -196,7 +202,7 @@ Infrastructure is defined in `render.yaml` (Blueprint). Push to GitHub and deplo
 ## CI/CD
 
 GitHub Actions (`.github/workflows/ci.yml`) runs on push/PR to main:
-- Backend: ruff lint (hard-fail), mypy type check (continue-on-error), pytest (soft-fail)
+- Backend: ruff lint (hard-fail), mypy type check (continue-on-error), pytest (hard-fail; only "no tests found" is suppressed)
 - Frontend: ng lint (continue-on-error), production build
 
 Render auto-deploys from `main` branch on push. Blueprint (`render.yaml`) defines all services.
