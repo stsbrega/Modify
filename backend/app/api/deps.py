@@ -5,10 +5,13 @@ import uuid
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.models.user import User
+from app.models.user_oauth_provider import UserOAuthProvider
 from app.services.auth import decode_access_token
 
 security = HTTPBearer(auto_error=True)
@@ -29,7 +32,12 @@ async def get_current_user(
         )
 
     user_id = uuid.UUID(payload["sub"])
-    user = await db.get(User, user_id)
+    result = await db.execute(
+        select(User)
+        .where(User.id == user_id)
+        .options(selectinload(User.oauth_providers))
+    )
+    user = result.scalar_one_or_none()
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -52,7 +60,12 @@ async def get_current_user_optional(
         return None
 
     user_id = uuid.UUID(payload["sub"])
-    return await db.get(User, user_id)
+    result = await db.execute(
+        select(User)
+        .where(User.id == user_id)
+        .options(selectinload(User.oauth_providers))
+    )
+    return result.scalar_one_or_none()
 
 
 async def require_verified_email(
