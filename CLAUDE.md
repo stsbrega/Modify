@@ -9,7 +9,7 @@ ModdersOmni is an AI-powered game modding assistant that generates personalized 
 - **Frontend**: Angular 19.2 (standalone components) + Tailwind CSS 4 + CSS custom properties + inline SCSS + TypeScript 5.7
 - **Backend**: Python 3.12 + FastAPI 0.115 + SQLAlchemy 2.0 + Pydantic 2
 - **Database**: PostgreSQL 16 (via asyncpg)
-- **Auth**: JWT (python-jose) + bcrypt (passlib) + OAuth (authlib) + email verification (fastapi-mail)
+- **Auth**: JWT (python-jose) + bcrypt (passlib) + OAuth (authlib, multi-provider) + email verification (fastapi-mail)
 - **Migrations**: Alembic (no migrations yet — seed script uses `create_all`)
 - **LLM**: OpenAI-compatible client (`openai` SDK) — supports Ollama (local), Groq, Together AI, HuggingFace (cloud)
 - **Mod API**: Nexus Mods v2 GraphQL API + optional custom mod source
@@ -41,6 +41,7 @@ backend/
       modlist.py      #   ModList
       compatibility.py#   CompatibilityRule
       playstyle_mod.py#   PlaystyleMod (junction table)
+      user_oauth_provider.py # UserOAuthProvider (multi-provider OAuth junction table)
     schemas/          # Pydantic request/response schemas (auth, game, modlist, specs, stats)
     services/         # Business logic
       auth.py         #   JWT creation/validation, password hashing, token management
@@ -109,6 +110,7 @@ pip install -r requirements.txt        # Install dependencies
 uvicorn app.main:app --reload           # Dev server (localhost:8000)
 pytest tests/ -v                        # Run tests
 # Note: tests require aiosqlite (pip install aiosqlite) — not yet in requirements.txt
+# Note: asyncpg may not be installed locally (no PostgreSQL). Use `python -m py_compile app/<file>.py` for syntax verification.
 ruff check app/                         # Lint
 black app/                              # Format
 mypy app/ --ignore-missing-imports --no-strict-optional  # Type check
@@ -198,6 +200,8 @@ Infrastructure is defined in `render.yaml` (Blueprint). Push to GitHub and deplo
 - `GET  /api/auth/oauth/providers` — List configured OAuth providers
 - `GET  /api/auth/oauth/{provider}` — Start OAuth flow (google/discord)
 - `GET  /api/auth/oauth/{provider}/callback` — OAuth callback
+- `GET  /api/auth/me/connected-accounts` — List connected OAuth providers (auth required)
+- `DELETE /api/auth/me/connected-accounts/{provider}` — Disconnect OAuth provider (auth required)
 
 ## CI/CD
 
