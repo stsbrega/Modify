@@ -10,7 +10,7 @@ import { GenerationStartResponse } from '../../shared/models/generation.model';
   providedIn: 'root',
 })
 export class ApiService {
-  private baseUrl = (window as any).__env?.API_URL || '/api';
+  private baseUrl = window.__env?.API_URL || '/api';
 
   constructor(private http: HttpClient) {}
 
@@ -85,17 +85,17 @@ export class ApiService {
     return this.http.get<Record<string, string>>(`${this.baseUrl}/settings/llm-keys/raw`);
   }
 
-  saveLlmKeys(keys: Record<string, string>): Observable<any> {
-    return this.http.patch(`${this.baseUrl}/settings/llm-keys`, keys);
+  saveLlmKeys(keys: Record<string, string>): Observable<Record<string, string>> {
+    return this.http.patch<Record<string, string>>(`${this.baseUrl}/settings/llm-keys`, keys);
   }
 
   // Settings
-  getSettings(): Observable<any> {
-    return this.http.get(`${this.baseUrl}/settings/`);
+  getSettings(): Observable<Record<string, unknown>> {
+    return this.http.get<Record<string, unknown>>(`${this.baseUrl}/settings/`);
   }
 
-  updateSettings(settings: any): Observable<any> {
-    return this.http.put(`${this.baseUrl}/settings/`, settings);
+  updateSettings(settings: Record<string, unknown>): Observable<Record<string, unknown>> {
+    return this.http.put<Record<string, unknown>>(`${this.baseUrl}/settings/`, settings);
   }
 
   // Stats (public)

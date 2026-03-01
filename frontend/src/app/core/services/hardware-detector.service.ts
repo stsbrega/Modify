@@ -16,7 +16,8 @@ export class HardwareDetectorService {
   async detect(): Promise<DetectedHardware> {
     const gpu = this.detectGpu();
     const cpuCores = navigator.hardwareConcurrency || null;
-    const ramGb = (navigator as any).deviceMemory || null;
+    // deviceMemory is a Chrome-only API not in all TypeScript lib definitions
+    const ramGb = ('deviceMemory' in navigator ? (navigator.deviceMemory as number) : null) || null;
 
     const lines: string[] = [];
     if (gpu) lines.push(`GPU: ${gpu}`);
@@ -40,7 +41,7 @@ export class HardwareDetectorService {
         canvas.getContext('webgl') ||
         canvas.getContext('experimental-webgl');
 
-      if (gl && gl instanceof WebGLRenderingContext || gl instanceof WebGL2RenderingContext) {
+      if (gl && (gl instanceof WebGLRenderingContext || gl instanceof WebGL2RenderingContext)) {
         const ext = (gl as WebGLRenderingContext).getExtension('WEBGL_debug_renderer_info');
         if (ext) {
           const renderer = (gl as WebGLRenderingContext).getParameter(ext.UNMASKED_RENDERER_WEBGL);

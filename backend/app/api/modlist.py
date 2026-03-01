@@ -17,8 +17,9 @@ from app.schemas.modlist import (
     ExportModEntry, ModEntry, ModlistExportResponse,
     ModlistGenerateRequest, ModlistResponse, UserKnowledgeFlag,
 )
-from app.services.modlist_generator import (
-    generate_modlist as run_generation, GenerationResult, _is_version_compatible,
+from app.services.generation import (
+    TIER_MIN_VRAM,
+    generate_modlist as run_generation, GenerationResult, is_version_compatible,
 )
 from app.services.nexus_client import NexusModsClient
 from app.api.deps import get_current_user, get_current_user_optional
@@ -200,10 +201,6 @@ async def generate_modlist(
     )
 
 
-# VRAM thresholds that map to the old tier_min values in seed data
-_TIER_MIN_VRAM = {"low": 0, "mid": 6144, "high": 10240, "ultra": 16384}
-
-
 async def _fallback_modlist(
     db: AsyncSession, playstyle_id: int, user_vram_mb: int | None,
     game_version: str | None = None,
@@ -220,9 +217,9 @@ async def _fallback_modlist(
 
     mods = []
     for i, (mod, pm) in enumerate(result.all()):
-        if not _is_version_compatible(mod.game_version_support, game_version):
+        if not is_version_compatible(mod.game_version_support, game_version):
             continue
-        min_vram = _TIER_MIN_VRAM.get(pm.hardware_tier_min or "low", 0)
+        min_vram = TIER_MIN_VRAM.get(pm.hardware_tier_min or "low", 0)
         if vram >= min_vram:
             mods.append({
                 "mod_id": mod.id,

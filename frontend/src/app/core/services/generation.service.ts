@@ -15,17 +15,21 @@ import { Injectable, signal, computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import {
+  CompleteEvent,
+  ErrorEvent,
   GenerationEvent,
   GenerationStartResponse,
   GenerationStatusResponse,
   ModAddedEvent,
   PatchAddedEvent,
+  PausedEvent,
+  PhaseStartEvent,
 } from '../../shared/models/generation.model';
 import { AuthService } from './auth.service';
 
 @Injectable({ providedIn: 'root' })
 export class GenerationService {
-  private baseUrl = (window as any).__env?.API_URL || '/api';
+  private baseUrl = window.__env?.API_URL || '/api';
   private eventSource: EventSource | null = null;
 
   // ── Observable state ──
@@ -35,12 +39,11 @@ export class GenerationService {
   readonly modlistId = signal<string | null>(null);
 
   // ── Derived state ──
-  readonly currentPhase = computed(() => {
+  readonly currentPhase = computed<PhaseStartEvent | null>(() => {
     const evts = this.events();
     for (let i = evts.length - 1; i >= 0; i--) {
-      if (evts[i].type === 'phase_start') {
-        return evts[i] as any;
-      }
+      const evt = evts[i];
+      if (evt.type === 'phase_start') return evt;
     }
     return null;
   });
@@ -62,18 +65,20 @@ export class GenerationService {
     )
   );
 
-  readonly pauseInfo = computed(() => {
+  readonly pauseInfo = computed<PausedEvent | null>(() => {
     const evts = this.events();
     for (let i = evts.length - 1; i >= 0; i--) {
-      if (evts[i].type === 'paused') return evts[i] as any;
+      const evt = evts[i];
+      if (evt.type === 'paused') return evt;
     }
     return null;
   });
 
-  readonly errorMessage = computed(() => {
+  readonly errorMessage = computed<string | null>(() => {
     const evts = this.events();
     for (let i = evts.length - 1; i >= 0; i--) {
-      if (evts[i].type === 'error') return (evts[i] as any).message;
+      const evt = evts[i];
+      if (evt.type === 'error') return evt.message;
     }
     return null;
   });
@@ -85,7 +90,7 @@ export class GenerationService {
 
   // ── API Methods ──
 
-  startGeneration(request: any): Observable<GenerationStartResponse> {
+  startGeneration(request: Record<string, unknown>): Observable<GenerationStartResponse> {
     return this.http.post<GenerationStartResponse>(
       `${this.baseUrl}/generation/start`,
       request,
@@ -130,7 +135,7 @@ export class GenerationService {
         switch (data.type) {
           case 'complete':
             this.status.set('complete');
-            this.modlistId.set((data as any).modlist_id);
+            this.modlistId.set((data as CompleteEvent).modlist_id);
             this.disconnectEvents();
             break;
           case 'error':

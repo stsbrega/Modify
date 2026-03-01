@@ -16,7 +16,7 @@ const TOKEN_KEY = 'access_token';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  private baseUrl = (window as any).__env?.API_URL || '/api';
+  private baseUrl = window.__env?.API_URL || '/api';
   private _user = signal<User | null>(null);
 
   readonly user = this._user.asReadonly();
@@ -160,28 +160,28 @@ export class AuthService {
     return this.http.get<OAuthProviderInfo[]>(`${this.baseUrl}/auth/me/connected-accounts`);
   }
 
-  disconnectAccount(provider: string): Observable<any> {
-    return this.http.delete(`${this.baseUrl}/auth/me/connected-accounts/${provider}`);
+  disconnectAccount(provider: string): Observable<{ status: string; message: string }> {
+    return this.http.delete<{ status: string; message: string }>(`${this.baseUrl}/auth/me/connected-accounts/${provider}`);
   }
 
   // --- Email Verification ---
 
-  verifyEmail(token: string): Observable<any> {
-    return this.http.post(`${this.baseUrl}/auth/verify-email`, { token });
+  verifyEmail(token: string): Observable<{ status: string; message: string }> {
+    return this.http.post<{ status: string; message: string }>(`${this.baseUrl}/auth/verify-email`, { token });
   }
 
-  resendVerification(): Observable<any> {
-    return this.http.post(`${this.baseUrl}/auth/resend-verification`, {});
+  resendVerification(): Observable<{ status: string; message: string }> {
+    return this.http.post<{ status: string; message: string }>(`${this.baseUrl}/auth/resend-verification`, {});
   }
 
   // --- Password Reset ---
 
-  forgotPassword(email: string): Observable<any> {
-    return this.http.post(`${this.baseUrl}/auth/forgot-password`, { email });
+  forgotPassword(email: string): Observable<{ status: string; message: string }> {
+    return this.http.post<{ status: string; message: string }>(`${this.baseUrl}/auth/forgot-password`, { email });
   }
 
-  resetPassword(token: string, newPassword: string): Observable<any> {
-    return this.http.post(`${this.baseUrl}/auth/reset-password`, {
+  resetPassword(token: string, newPassword: string): Observable<{ status: string; message: string }> {
+    return this.http.post<{ status: string; message: string }>(`${this.baseUrl}/auth/reset-password`, {
       token,
       new_password: newPassword,
     });

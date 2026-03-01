@@ -24,7 +24,7 @@ from app.models.user import User
 from app.schemas.modlist import ModlistGenerateRequest
 from app.services.auth import decode_access_token
 from app.services.generation_manager import GenerationManager
-from app.services.modlist_generator import (
+from app.services.generation import (
     GenerationSession,
     PauseGeneration,
     generate_modlist,
