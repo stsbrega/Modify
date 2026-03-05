@@ -14,7 +14,6 @@ from app.models.playstyle import Playstyle
 from app.schemas.modlist import ModlistGenerateRequest
 
 from .session import GenerationSession
-from .version import VERSION_NOTES
 
 logger = logging.getLogger(__name__)
 
