@@ -86,6 +86,16 @@ PROVIDER_REGISTRY: list[dict] = [
         "hint_url": "bailian.console.alibabacloud.com",
         "key_prefixes": ["sk-"],
     },
+    {
+        "id": "openrouter",
+        "name": "OpenRouter",
+        "model": "openrouter/free",
+        "base_url": "https://openrouter.ai/api/v1",
+        "type": "openai_compatible",
+        "placeholder": "sk-or-...",
+        "hint_url": "openrouter.ai/keys",
+        "key_prefixes": ["sk-or-"],
+    },
 ]
 
 
