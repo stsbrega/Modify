@@ -81,6 +81,28 @@ async def send_verification_email(to: str, token: str) -> None:
     await sender.send_email(to, "Verify your email — ModdersOmni", html)
 
 
+async def send_inactivity_warning_email(
+    to: str, display_name: str | None, deletion_date: str
+) -> None:
+    """Warn a user that their account will be deleted due to inactivity."""
+    settings = get_settings()
+    login_url = f"{settings.frontend_url}/auth/login"
+    greeting = f"Hi {display_name}" if display_name else "Hi"
+    html = f"""
+    <h2>Your ModdersOmni account will be deleted</h2>
+    <p>{greeting},</p>
+    <p>It's been over a year since you last signed in to ModdersOmni.
+       As a security precaution, we will delete your account and all associated data
+       on <strong>{deletion_date}</strong>.</p>
+    <p>To keep your account, simply <a href="{login_url}">sign in</a> before that date.</p>
+    <p>If you no longer need your account, no action is required — your data will be
+       removed automatically. You can always create a new account with the same email address.</p>
+    <p>— The ModdersOmni Team</p>
+    """
+    sender = get_email_sender()
+    await sender.send_email(to, "Your ModdersOmni account will be deleted soon", html)
+
+
 async def send_password_reset_email(to: str, token: str) -> None:
     """Send a password reset link."""
     settings = get_settings()

@@ -5,13 +5,16 @@ import { ApiService } from '../../core/services/api.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { AuthService } from '../../core/services/auth.service';
 import { HardwareDetectorService } from '../../core/services/hardware-detector.service';
+import { LlmProvider } from '../../shared/models/mod.model';
+import { detectProvider } from '../../core/utils/key-detection';
+import { ApiKeyGuideComponent } from '../../shared/components/api-key-guide/api-key-guide.component';
 
 type SettingsTab = 'profile' | 'hardware' | 'notifications';
 
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, ApiKeyGuideComponent],
   animations: [
     trigger('fadeIn', [
       transition(':enter', [
@@ -104,25 +107,123 @@ type SettingsTab = 'profile' | 'hardware' | 'notifications';
               </div>
               <div class="panel-section">
                 <h3>AI Provider API Keys</h3>
+                <div class="key-security-notice">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                  </svg>
+                  <span>Your API keys are stored securely and only used during modlist generation. Never share your keys with anyone.</span>
+                </div>
                 <p class="input-hint" style="margin-bottom: 0.75rem;">
-                  Add API keys for the LLM providers you want to use for modlist generation.
-                  Keys are tried in order during generation — if one fails, the next is used.
+                  Paste an API key below — the provider will be detected automatically.
+                  If one provider hits a rate limit during generation, the next is used.
                 </p>
-                @for (provider of llmProviders(); track provider.id) {
-                  <div class="provider-row">
-                    <div class="provider-header">
-                      <span class="provider-name">{{ provider.name }}</span>
-                      <a class="provider-link" [href]="'https://' + provider.hint_url" target="_blank" rel="noopener">
-                        {{ provider.hint_url }}
-                      </a>
-                    </div>
+
+                <app-api-key-guide [providers]="llmProviders()" />
+
+                <!-- Add Key Input -->
+                <div class="add-key-row">
+                  <div class="key-input-wrap">
                     <input
                       type="password"
-                      class="input"
-                      [placeholder]="provider.placeholder || 'Enter API key'"
-                      [value]="llmKeys()[provider.id] || ''"
-                      (input)="setLlmKey(provider.id, $any($event.target).value)"
-                    >
+                      [value]="newKeyInput()"
+                      (input)="newKeyInput.set($any($event.target).value)"
+                      (paste)="onKeyPaste($event)"
+                      placeholder="Paste any AI provider API key..."
+                      autocomplete="off"
+                      spellcheck="false"
+                    />
+                  </div>
+                  <button class="btn-add-key" (click)="addKey()" [disabled]="!newKeyInput()">
+                    Add Key
+                  </button>
+                </div>
+
+                <!-- Detection feedback -->
+                @if (detectionState()) {
+                  <div class="detection-feedback" [class.warning]="detectionState()!.type !== 'exact'" @fadeIn>
+                    @if (detectionState()!.type === 'exact') {
+                      <div class="detection-exact">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                          <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        Detected: <strong>{{ detectionState()!.providerName }}</strong>
+                      </div>
+                    } @else if (detectionState()!.type === 'ambiguous') {
+                      <div class="detection-warn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <circle cx="12" cy="12" r="10"/>
+                          <line x1="12" y1="8" x2="12" y2="12"/>
+                          <line x1="12" y1="16" x2="12.01" y2="16"/>
+                        </svg>
+                        <span>This key prefix matches multiple providers. Please select the correct one:</span>
+                      </div>
+                      <select class="input detection-select" (change)="confirmProvider($any($event.target).value)">
+                        <option value="" disabled selected>Select provider...</option>
+                        @for (m of detectionState()!.matches; track m.id) {
+                          <option [value]="m.id">{{ m.name }}</option>
+                        }
+                      </select>
+                    } @else {
+                      <div class="detection-warn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <circle cx="12" cy="12" r="10"/>
+                          <line x1="12" y1="8" x2="12" y2="12"/>
+                          <line x1="12" y1="16" x2="12.01" y2="16"/>
+                        </svg>
+                        <span>Could not identify the provider from this key. Please select it manually:</span>
+                      </div>
+                      <select class="input detection-select" (change)="confirmProvider($any($event.target).value)">
+                        <option value="" disabled selected>Select provider...</option>
+                        @for (p of llmProviders(); track p.id) {
+                          <option [value]="p.id">{{ p.name }}</option>
+                        }
+                      </select>
+                    }
+                  </div>
+                }
+
+                <!-- Saved Keys List -->
+                @if (savedKeysList().length > 0) {
+                  <div class="saved-keys">
+                    @for (entry of savedKeysList(); track entry.providerId) {
+                      <div class="saved-key-row">
+                        <div class="saved-key-info">
+                          <span class="saved-key-provider">{{ entry.providerName }}</span>
+                          <span class="saved-key-masked">{{ entry.maskedKey }}</span>
+                        </div>
+                        <div class="saved-key-actions">
+                          @if (editingKeyProvider() === entry.providerId) {
+                            <select class="input reassign-select" (change)="reassignKey(entry.providerId, $any($event.target).value)">
+                              <option value="" disabled selected>Move to...</option>
+                              @for (p of llmProviders(); track p.id) {
+                                @if (p.id !== entry.providerId) {
+                                  <option [value]="p.id">{{ p.name }}</option>
+                                }
+                              }
+                            </select>
+                            <button class="btn-icon" (click)="editingKeyProvider.set(null)" title="Cancel">
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                              </svg>
+                            </button>
+                          } @else {
+                            <button class="btn-icon" (click)="editingKeyProvider.set(entry.providerId)" title="Reassign to different provider">
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                              </svg>
+                            </button>
+                            <button class="btn-icon btn-delete" (click)="deleteKey(entry.providerId)" title="Remove key">
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3 6 5 6 21 6"/>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                              </svg>
+                            </button>
+                          }
+                        </div>
+                      </div>
+                    }
                   </div>
                 }
               </div>
@@ -725,28 +826,168 @@ type SettingsTab = 'profile' | 'hardware' | 'notifications';
       color: var(--color-gold);
     }
 
-    /* Provider rows */
-    .provider-row {
-      padding: 0.75rem 0;
-      border-bottom: 1px solid var(--color-border);
-    }
-    .provider-row:last-child { border-bottom: none; }
-    .provider-header {
+    /* Security notice */
+    .key-security-notice {
       display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      margin-bottom: 0.375rem;
+      align-items: flex-start;
+      gap: 0.5rem;
+      padding: 0.625rem 0.75rem;
+      background: rgba(192, 160, 96, 0.06);
+      border: 1px solid rgba(192, 160, 96, 0.15);
+      border-radius: 8px;
+      margin-bottom: 0.75rem;
+      font-size: 0.75rem;
+      color: var(--color-text-muted);
+      line-height: 1.4;
     }
-    .provider-row .provider-name {
+    .key-security-notice svg {
+      flex-shrink: 0;
+      margin-top: 1px;
+      color: var(--color-gold);
+    }
+
+    /* Add key row */
+    .add-key-row {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .add-key-row .key-input-wrap {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      background: var(--color-bg-card);
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+      overflow: hidden;
+      transition: border-color 0.15s;
+    }
+    .add-key-row .key-input-wrap:focus-within {
+      border-color: var(--color-gold);
+    }
+    .add-key-row .key-input-wrap input {
+      flex: 1;
+      background: none;
+      border: none;
+      color: var(--color-text);
+      font-size: 0.8125rem;
+      padding: 0.625rem 0.875rem;
+      outline: none;
+      font-family: monospace;
+      min-width: 0;
+    }
+    .add-key-row .key-input-wrap input::placeholder {
+      color: var(--color-text-dim);
+      font-family: inherit;
+    }
+    .btn-add-key {
+      background: var(--color-gold);
+      color: #0D0D0F;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
       font-size: 0.8125rem;
       font-weight: 600;
+      white-space: nowrap;
+      transition: background 0.2s;
     }
-    .provider-link {
-      font-size: 0.6875rem;
+    .btn-add-key:hover:not(:disabled) { background: var(--color-gold-hover); }
+    .btn-add-key:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Detection feedback */
+    .detection-feedback {
+      padding: 0.625rem 0.75rem;
+      border-radius: 8px;
+      margin-bottom: 0.75rem;
+      font-size: 0.8125rem;
+    }
+    .detection-feedback:not(.warning) {
+      background: rgba(34, 197, 94, 0.08);
+      border: 1px solid rgba(34, 197, 94, 0.2);
+    }
+    .detection-feedback.warning {
+      background: rgba(234, 179, 8, 0.08);
+      border: 1px solid rgba(234, 179, 8, 0.2);
+    }
+    .detection-exact {
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
+      color: #22c55e;
+      font-weight: 500;
+    }
+    .detection-exact strong { color: var(--color-text); }
+    .detection-warn {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.375rem;
+      color: var(--color-warning);
+      margin-bottom: 0.5rem;
+    }
+    .detection-warn svg { flex-shrink: 0; margin-top: 2px; }
+    .detection-select {
+      margin-top: 0.25rem;
+      font-size: 0.8125rem;
+    }
+
+    /* Saved keys list */
+    .saved-keys {
+      display: flex;
+      flex-direction: column;
+      gap: 0.375rem;
+      margin-top: 0.5rem;
+    }
+    .saved-key-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.625rem 0.75rem;
+      background: var(--color-bg-card);
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+    }
+    .saved-key-info {
+      display: flex;
+      align-items: center;
+      gap: 0.625rem;
+      min-width: 0;
+    }
+    .saved-key-provider {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .saved-key-masked {
+      font-size: 0.75rem;
       color: var(--color-text-dim);
-      transition: color 0.15s;
+      font-family: monospace;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
-    .provider-link:hover { color: var(--color-gold); }
+    .saved-key-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      flex-shrink: 0;
+    }
+    .btn-icon {
+      background: none;
+      border: none;
+      color: var(--color-text-muted);
+      padding: 0.375rem;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      transition: color 0.15s, background 0.15s;
+    }
+    .btn-icon:hover { color: var(--color-text); background: rgba(255,255,255,0.06); }
+    .btn-delete:hover { color: #ef4444; background: rgba(239,68,68,0.08); }
+    .reassign-select {
+      font-size: 0.75rem;
+      padding: 0.25rem 0.5rem;
+      max-width: 140px;
+    }
 
     /* Notification items */
     .notif-item {
@@ -834,8 +1075,35 @@ export class SettingsComponent implements OnInit {
   nexusApiKey = '';
 
   // LLM Providers (registry-based)
-  llmProviders = signal<{ id: string; name: string; model: string; placeholder: string; hint_url: string }[]>([]);
+  llmProviders = signal<LlmProvider[]>([]);
   llmKeys = signal<Record<string, string>>({});
+
+  // Dynamic key entry state
+  newKeyInput = signal('');
+  detectionState = signal<{
+    type: 'exact' | 'ambiguous' | 'unknown';
+    providerId?: string;
+    providerName?: string;
+    matches?: { id: string; name: string }[];
+  } | null>(null);
+  editingKeyProvider = signal<string | null>(null);
+  savedKeysList = computed(() => {
+    const keys = this.llmKeys();
+    const providers = this.llmProviders();
+    return Object.entries(keys)
+      .filter(([, key]) => key.length > 0)
+      .map(([providerId, key]) => {
+        const provider = providers.find(p => p.id === providerId);
+        const masked = key.length > 12
+          ? key.substring(0, 6) + '...' + key.substring(key.length - 4)
+          : '***';
+        return {
+          providerId,
+          providerName: provider?.name || providerId,
+          maskedKey: masked,
+        };
+      });
+  });
 
   // Hardware
   gpuModel = '';
@@ -884,8 +1152,105 @@ export class SettingsComponent implements OnInit {
     this.loadLlmKeys();
   }
 
-  setLlmKey(providerId: string, value: string): void {
-    this.llmKeys.update(keys => ({ ...keys, [providerId]: value }));
+  onKeyPaste(event: ClipboardEvent): void {
+    const pasted = event.clipboardData?.getData('text')?.trim();
+    if (!pasted) return;
+    // Let the input update first, then run detection
+    setTimeout(() => this.runDetection(pasted), 0);
+  }
+
+  addKey(): void {
+    const key = this.newKeyInput().trim();
+    if (!key) return;
+
+    const state = this.detectionState();
+    if (state?.type === 'exact' && state.providerId) {
+      this.saveDetectedKey(state.providerId, key);
+    } else if (!state) {
+      // Run detection if not yet run (user typed instead of pasting)
+      this.runDetection(key);
+    }
+    // For ambiguous/unknown, user must pick from dropdown first (confirmProvider)
+  }
+
+  confirmProvider(providerId: string): void {
+    if (!providerId) return;
+    const key = this.newKeyInput().trim();
+    if (!key) return;
+    this.saveDetectedKey(providerId, key);
+  }
+
+  deleteKey(providerId: string): void {
+    this.llmKeys.update(keys => {
+      const updated = { ...keys };
+      delete updated[providerId];
+      return updated;
+    });
+    // Persist deletion to backend
+    this.api.saveLlmKeys({ [providerId]: '' }).subscribe({
+      error: () => this.notifications.error('Failed to remove key'),
+    });
+    this.notifications.success('API key removed');
+  }
+
+  reassignKey(oldProviderId: string, newProviderId: string): void {
+    if (!newProviderId) return;
+    const keys = this.llmKeys();
+    const key = keys[oldProviderId];
+    if (!key) return;
+
+    // Remove old, add new
+    this.llmKeys.update(k => {
+      const updated = { ...k };
+      delete updated[oldProviderId];
+      updated[newProviderId] = key;
+      return updated;
+    });
+
+    // Persist both changes
+    this.api.saveLlmKeys({ [oldProviderId]: '', [newProviderId]: key }).subscribe({
+      error: () => this.notifications.error('Failed to reassign key'),
+    });
+
+    this.editingKeyProvider.set(null);
+    const provider = this.llmProviders().find(p => p.id === newProviderId);
+    this.notifications.success(`Key reassigned to ${provider?.name || newProviderId}`);
+  }
+
+  private runDetection(key: string): void {
+    const result = detectProvider(key, this.llmProviders());
+
+    if (!result) {
+      this.detectionState.set({ type: 'unknown' });
+      return;
+    }
+
+    if (result.confidence === 'exact') {
+      this.detectionState.set({
+        type: 'exact',
+        providerId: result.providerId,
+        providerName: result.providerName,
+      });
+    } else {
+      this.detectionState.set({
+        type: 'ambiguous',
+        matches: result.matchedProviders,
+      });
+    }
+  }
+
+  private saveDetectedKey(providerId: string, key: string): void {
+    this.llmKeys.update(keys => ({ ...keys, [providerId]: key }));
+    this.api.saveLlmKeys({ [providerId]: key }).subscribe({
+      error: () => this.notifications.error('Failed to save key'),
+    });
+
+    const provider = this.llmProviders().find(p => p.id === providerId);
+    this.notifications.success(`${provider?.name || providerId} key saved`);
+
+    // Reset input state
+    this.newKeyInput.set('');
+    this.detectionState.set(null);
   }
 
   resendVerification(): void {

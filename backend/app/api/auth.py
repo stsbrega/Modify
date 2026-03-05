@@ -1,6 +1,7 @@
 """Authentication API routes."""
 
 import logging
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
@@ -76,6 +77,13 @@ def _clear_refresh_cookie(response: Response) -> None:
     )
 
 
+def _stamp_activity(user: User) -> None:
+    """Record an authentication event and cancel any pending deletion warning."""
+    user.last_active_at = datetime.utcnow()
+    if user.deletion_warning_sent_at is not None:
+        user.deletion_warning_sent_at = None
+
+
 def _build_user_response(user: User) -> UserResponse:
     hardware = None
     if user.gpu_model or user.cpu_model or user.ram_gb or user.vram_mb:
@@ -134,6 +142,8 @@ async def register(
     db.add(user)
     await db.flush()
 
+    _stamp_activity(user)
+
     # Create default settings
     settings_row = UserSettings(user_id=user.id)
     db.add(settings_row)
@@ -186,6 +196,8 @@ async def login(
             detail="Invalid email or password",
         )
 
+    _stamp_activity(user)
+
     access_token, expires_in = create_access_token(
         user.id, user.email, user.email_verified
     )
@@ -229,6 +241,8 @@ async def refresh(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
         )
+
+    _stamp_activity(user)
 
     access_token, expires_in = create_access_token(
         user.id, user.email, user.email_verified
@@ -596,6 +610,8 @@ async def oauth_callback(
             provider_user_id=user_info.provider_user_id,
         )
         db.add(oauth_link)
+
+    _stamp_activity(user)
 
     # Issue tokens
     access_token, expires_in = create_access_token(

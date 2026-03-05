@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -48,13 +49,29 @@ async def init_db():
     _db_ready = True
 
 
+async def _run_account_cleanup_loop():
+    """Periodically warn and delete inactive accounts."""
+    settings = get_settings()
+    await asyncio.sleep(60)  # Let the app finish starting up
+    while True:
+        try:
+            from app.services.account_cleanup import run_cleanup_cycle
+            await run_cleanup_cycle()
+        except Exception:
+            logger.exception("Account cleanup cycle failed")
+        await asyncio.sleep(settings.account_cleanup_interval_hours * 3600)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
         await init_db()
     except Exception:
         logger.exception("Database init failed — app will start without data")
+
+    cleanup_task = asyncio.create_task(_run_account_cleanup_loop())
     yield
+    cleanup_task.cancel()
 
 
 app = FastAPI(

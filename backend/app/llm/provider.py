@@ -68,6 +68,7 @@ class OpenAICompatibleProvider(LLMProvider):
     ) -> list[dict]:
         """Run a tool-calling loop until the LLM stops calling tools or we hit max_iterations."""
         messages = list(messages)  # don't mutate caller's list
+        consecutive_text_only = 0
 
         for iteration in range(max_iterations):
             logger.info(f"Tool-calling iteration {iteration + 1}/{max_iterations}")
@@ -102,10 +103,23 @@ class OpenAICompatibleProvider(LLMProvider):
 
             messages.append(assistant_msg)
 
-            # No tool calls — LLM is done
+            # No tool calls — the LLM may be thinking or genuinely done.
+            # Allow up to 2 consecutive text-only responses before stopping,
+            # because models often emit analysis text between tool calls.
             if not choice.message.tool_calls:
-                logger.info("LLM finished (no tool calls)")
-                break
+                consecutive_text_only += 1
+                if consecutive_text_only >= 2:
+                    logger.info("LLM finished (2 consecutive text-only responses)")
+                    break
+                logger.info("Text-only response, continuing loop (attempt %d/2)", consecutive_text_only)
+                # Nudge the model to continue using tools
+                messages.append({
+                    "role": "user",
+                    "content": "Continue — use the tools to search for and add mods.",
+                })
+                continue
+
+            consecutive_text_only = 0
 
             # Execute each tool call
             for tc in choice.message.tool_calls:
@@ -185,6 +199,7 @@ class AnthropicProvider(LLMProvider):
             })
 
         msgs = list(anthropic_messages)
+        consecutive_text_only = 0
         for iteration in range(max_iterations):
             logger.info(f"[Anthropic] Tool-calling iteration {iteration + 1}/{max_iterations}")
 
@@ -216,8 +231,20 @@ class AnthropicProvider(LLMProvider):
             # Extract tool use blocks
             tool_uses = [b for b in response.content if b.type == "tool_use"]
             if not tool_uses:
-                logger.info("[Anthropic] LLM finished (no tool calls)")
-                break
+                consecutive_text_only += 1
+                if consecutive_text_only >= 2:
+                    logger.info("[Anthropic] LLM finished (2 consecutive text-only responses)")
+                    break
+                logger.info("[Anthropic] Text-only response, continuing loop (attempt %d/2)", consecutive_text_only)
+                # Nudge the model to continue using tools (also satisfies
+                # Anthropic's requirement that messages alternate user/assistant)
+                msgs.append({
+                    "role": "user",
+                    "content": "Continue — use the tools to search for and add mods.",
+                })
+                continue
+
+            consecutive_text_only = 0
 
             # Execute tools and build Anthropic-format tool results
             tool_results = []

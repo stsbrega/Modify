@@ -37,6 +37,8 @@ class User(Base):
     updated_at: Mapped[datetime] = mapped_column(
         default=datetime.utcnow, onupdate=datetime.utcnow
     )
+    last_active_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    deletion_warning_sent_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
     # Relationships
     modlists: Mapped[list["Modlist"]] = relationship(back_populates="user")  # noqa: F821

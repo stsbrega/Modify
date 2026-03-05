@@ -11,7 +11,7 @@ ModdersOmni is an AI-powered game modding assistant. Users input their PC hardwa
 - **Frontend**: Angular 19.2 (standalone components, no NgModules) + Tailwind CSS 4 + inline SCSS
 - **Backend**: Python 3.12 + FastAPI 0.115 + SQLAlchemy 2.0 (async) + Pydantic 2
 - **Database**: PostgreSQL 16 (asyncpg)
-- **Auth**: JWT (python-jose) + bcrypt + OAuth (authlib — Google, Discord) + email verification (fastapi-mail)
+- **Auth**: JWT (python-jose) + bcrypt (direct, not passlib — passlib is incompatible with bcrypt 4+/Python 3.13+) + OAuth (authlib — Google, Discord) + email verification (fastapi-mail)
 - **LLM**: OpenAI-compatible SDK supporting 7 providers (Anthropic, OpenAI, Gemini, Groq, Together AI, DeepSeek, Mistral)
 - **Mod API**: Nexus Mods v2 GraphQL API (per-user API keys)
 - **Deployment**: Render (Python backend, static frontend, managed PostgreSQL). Defined in `render.yaml`.
@@ -28,6 +28,11 @@ ruff check app/                          # Lint (hard-fail in CI)
 mypy app/ --ignore-missing-imports --no-strict-optional  # Type check
 pytest tests/ -v                         # Tests (require PostgreSQL or aiosqlite)
 ```
+
+### Local Dev Environment
+- Local Python is 3.14; `requirements.txt` pins versions for Render (Python 3.12). Install deps individually (`pip install <pkg>`) if pinned versions fail to build.
+- Running tests requires `aiosqlite` (not in requirements.txt): `pip install aiosqlite`
+- `conftest.py` imports `app.main` which chains all app imports — all backend deps must be installed even for pure unit tests
 
 ### Frontend (run from `frontend/`)
 

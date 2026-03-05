@@ -217,6 +217,29 @@ async def _apply_migrations(conn) -> None:
     except Exception:
         pass  # Column already exists or table doesn't exist yet
 
+    # Add last_active_at to users for inactivity tracking
+    try:
+        await conn.execute(text(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMP"
+        ))
+        await conn.execute(text(
+            "UPDATE users SET last_active_at = updated_at "
+            "WHERE last_active_at IS NULL"
+        ))
+        print("  Migration: added users.last_active_at")
+    except Exception:
+        pass
+
+    # Add deletion_warning_sent_at to users for cleanup flow
+    try:
+        await conn.execute(text(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS "
+            "deletion_warning_sent_at TIMESTAMP"
+        ))
+        print("  Migration: added users.deletion_warning_sent_at")
+    except Exception:
+        pass
+
 
 async def main():
     print("Creating database tables...")

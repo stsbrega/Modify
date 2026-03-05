@@ -77,6 +77,11 @@ class Settings(BaseSettings):
     discord_client_secret: str = ""
     discord_redirect_uri: str = "http://localhost:8000/api/auth/oauth/discord/callback"
 
+    # Account cleanup
+    account_inactive_days: int = 365
+    account_deletion_grace_days: int = 30
+    account_cleanup_interval_hours: int = 24
+
     # Frontend URL (for email links and OAuth redirects)
     frontend_url: str = "http://localhost:4200"
 

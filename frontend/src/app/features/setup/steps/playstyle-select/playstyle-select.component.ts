@@ -8,12 +8,14 @@ import { NotificationService } from '../../../../core/services/notification.serv
 import { Playstyle } from '../../../../shared/models/game.model';
 import { HardwareSpecs } from '../../../../shared/models/specs.model';
 import { LlmProvider } from '../../../../shared/models/mod.model';
+import { detectProvider } from '../../../../core/utils/key-detection';
+import { ApiKeyGuideComponent } from '../../../../shared/components/api-key-guide/api-key-guide.component';
 import { trigger, transition, style, animate, query, stagger } from '@angular/animations';
 
 @Component({
   selector: 'app-playstyle-select',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, ApiKeyGuideComponent],
   animations: [
     trigger('staggerCards', [
       transition(':enter', [
@@ -196,108 +198,110 @@ import { trigger, transition, style, animate, query, stagger } from '@angular/an
                 </svg>
                 <p>Create an account to configure AI providers and generate your modlist.</p>
               </div>
-            } @else if (pendingGenerate()) {
-              <p class="pending-prompt">
-                Enter at least one API key below, then generation will start automatically.
-              </p>
-
-              <div class="provider-list">
-                @for (p of providers(); track p.id) {
-                  <div class="provider-row" [class.has-key]="getKey(p.id)">
-                    <div class="provider-info">
-                      <div class="provider-status">
-                        @if (getKey(p.id)) {
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                            <polyline points="20 6 9 17 4 12"/>
-                          </svg>
-                        }
-                      </div>
-                      <div>
-                        <span class="provider-name">{{ p.name }}</span>
-                        <span class="provider-model">{{ p.model }}</span>
-                      </div>
-                    </div>
-                    <div class="key-input-wrap">
-                      <input
-                        [type]="isKeyVisible(p.id) ? 'text' : 'password'"
-                        [value]="getKey(p.id)"
-                        (input)="onKeyInput(p.id, $event)"
-                        [placeholder]="p.placeholder || 'API key'"
-                        autocomplete="off"
-                        spellcheck="false"
-                      />
-                      <button class="key-toggle" (click)="toggleKeyVisibility(p.id)" type="button" tabindex="-1">
-                        @if (isKeyVisible(p.id)) {
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                            <line x1="1" y1="1" x2="23" y2="23"/>
-                          </svg>
-                        } @else {
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                            <circle cx="12" cy="12" r="3"/>
-                          </svg>
-                        }
-                      </button>
-                    </div>
-                    <span class="key-hint">{{ p.hint_url }}</span>
-                  </div>
-                }
-              </div>
             } @else {
-              <p class="provider-desc">
-                Enter API keys for one or more providers. If one hits a rate limit, the next will be tried automatically.
-              </p>
+              @if (pendingGenerate()) {
+                <p class="pending-prompt">
+                  Enter at least one API key below, then generation will start automatically.
+                </p>
+              } @else {
+                <p class="provider-desc">
+                  Paste an API key — the provider will be detected automatically.
+                </p>
+              }
 
-              <div class="provider-list">
-                @for (p of providers(); track p.id) {
-                  <div class="provider-row" [class.has-key]="getKey(p.id)">
-                    <div class="provider-info">
-                      <div class="provider-status">
-                        @if (getKey(p.id)) {
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                            <polyline points="20 6 9 17 4 12"/>
-                          </svg>
-                        }
-                      </div>
-                      <div>
-                        <span class="provider-name">{{ p.name }}</span>
-                        <span class="provider-model">{{ p.model }}</span>
-                      </div>
+              <div class="key-security-notice">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+                <span>Keys are stored securely and never shared. You can remove them anytime.</span>
+              </div>
+
+              <app-api-key-guide [providers]="providers()" />
+
+              <!-- Add Key Input -->
+              <div class="add-key-row">
+                <div class="key-input-wrap">
+                  <input
+                    type="password"
+                    [value]="newKeyInput()"
+                    (input)="newKeyInput.set($any($event.target).value)"
+                    (paste)="onNewKeyPaste($event)"
+                    placeholder="Paste any AI provider API key..."
+                    autocomplete="off"
+                    spellcheck="false"
+                  />
+                </div>
+                <button class="btn-add-key" (click)="addNewKey()" [disabled]="!newKeyInput()">
+                  Add
+                </button>
+              </div>
+
+              <!-- Detection feedback -->
+              @if (detectionState()) {
+                <div class="detection-feedback" [class.warn]="detectionState()!.type !== 'exact'">
+                  @if (detectionState()!.type === 'exact') {
+                    <div class="detection-exact">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                      Detected: <strong>{{ detectionState()!.providerName }}</strong>
                     </div>
-                    <div class="key-input-wrap">
-                      <input
-                        [type]="isKeyVisible(p.id) ? 'text' : 'password'"
-                        [value]="getKey(p.id)"
-                        (input)="onKeyInput(p.id, $event)"
-                        [placeholder]="p.placeholder || 'API key'"
-                        autocomplete="off"
-                        spellcheck="false"
-                      />
-                      <button class="key-toggle" (click)="toggleKeyVisibility(p.id)" type="button" tabindex="-1">
-                        @if (isKeyVisible(p.id)) {
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                            <line x1="1" y1="1" x2="23" y2="23"/>
-                          </svg>
-                        } @else {
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                            <circle cx="12" cy="12" r="3"/>
-                          </svg>
-                        }
+                  } @else if (detectionState()!.type === 'ambiguous') {
+                    <div class="detection-warn-msg">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="12" y1="8" x2="12" y2="12"/>
+                        <line x1="12" y1="16" x2="12.01" y2="16"/>
+                      </svg>
+                      <span>Multiple providers match. Select one:</span>
+                    </div>
+                    <select class="detect-select" (change)="confirmDetectedProvider($any($event.target).value)">
+                      <option value="" disabled selected>Select...</option>
+                      @for (m of detectionState()!.matches; track m.id) {
+                        <option [value]="m.id">{{ m.name }}</option>
+                      }
+                    </select>
+                  } @else {
+                    <div class="detection-warn-msg">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="12" y1="8" x2="12" y2="12"/>
+                        <line x1="12" y1="16" x2="12.01" y2="16"/>
+                      </svg>
+                      <span>Unknown key format. Select provider:</span>
+                    </div>
+                    <select class="detect-select" (change)="confirmDetectedProvider($any($event.target).value)">
+                      <option value="" disabled selected>Select...</option>
+                      @for (p of providers(); track p.id) {
+                        <option [value]="p.id">{{ p.name }}</option>
+                      }
+                    </select>
+                  }
+                </div>
+              }
+
+              <!-- Saved Keys -->
+              @if (savedKeyEntries().length > 0) {
+                <div class="saved-keys-list">
+                  @for (entry of savedKeyEntries(); track entry.providerId) {
+                    <div class="saved-key-chip">
+                      <span class="chip-provider">{{ entry.providerName }}</span>
+                      <span class="chip-mask">{{ entry.masked }}</span>
+                      <button class="chip-remove" (click)="removeKey(entry.providerId)" title="Remove">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
                       </button>
                     </div>
-                    <span class="key-hint">{{ p.hint_url }}</span>
-                  </div>
-                }
-                @if (providers().length === 0) {
-                  <div class="loading-state">
-                    <span class="load-spinner"></span>
-                    Loading providers...
-                  </div>
-                }
-              </div>
+                  }
+                </div>
+              } @else if (providers().length === 0) {
+                <div class="loading-state">
+                  <span class="load-spinner"></span>
+                  Loading providers...
+                </div>
+              }
             }
           </div>
         }
@@ -668,6 +672,129 @@ import { trigger, transition, style, animate, query, stagger } from '@angular/an
       color: var(--color-text-dim);
     }
 
+    /* Security notice */
+    .key-security-notice {
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
+      padding: 0.375rem 0.625rem;
+      background: rgba(192, 160, 96, 0.06);
+      border: 1px solid rgba(192, 160, 96, 0.12);
+      border-radius: 6px;
+      margin-bottom: 0.625rem;
+      font-size: 0.6875rem;
+      color: var(--color-text-dim);
+      line-height: 1.3;
+    }
+    .key-security-notice svg {
+      flex-shrink: 0;
+      color: var(--color-gold);
+    }
+
+    /* Add key row */
+    .add-key-row {
+      display: flex;
+      gap: 0.375rem;
+      margin-bottom: 0.375rem;
+    }
+    .add-key-row .key-input-wrap { flex: 1; }
+    .btn-add-key {
+      background: var(--color-gold);
+      color: #0D0D0F;
+      padding: 0.375rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      white-space: nowrap;
+      transition: background 0.2s;
+    }
+    .btn-add-key:hover:not(:disabled) { background: var(--color-gold-hover); }
+    .btn-add-key:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Detection feedback */
+    .detection-feedback {
+      padding: 0.5rem 0.625rem;
+      border-radius: 6px;
+      margin-bottom: 0.5rem;
+      font-size: 0.75rem;
+      background: rgba(34, 197, 94, 0.08);
+      border: 1px solid rgba(34, 197, 94, 0.2);
+    }
+    .detection-feedback.warn {
+      background: rgba(234, 179, 8, 0.08);
+      border: 1px solid rgba(234, 179, 8, 0.2);
+    }
+    .detection-exact {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      color: #22c55e;
+      font-weight: 500;
+    }
+    .detection-exact strong { color: var(--color-text); }
+    .detection-warn-msg {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      color: var(--color-warning);
+      margin-bottom: 0.375rem;
+    }
+    .detection-warn-msg svg { flex-shrink: 0; }
+    .detect-select {
+      width: 100%;
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      border-radius: 6px;
+      color: var(--color-text);
+      padding: 0.375rem 0.5rem;
+      font-size: 0.75rem;
+      outline: none;
+      cursor: pointer;
+    }
+    .detect-select:focus { border-color: var(--color-gold); }
+
+    /* Saved keys chips */
+    .saved-keys-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.375rem;
+      margin-top: 0.375rem;
+    }
+    .saved-key-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      padding: 0.25rem 0.375rem 0.25rem 0.625rem;
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      border-radius: 100px;
+      font-size: 0.6875rem;
+    }
+    .chip-provider {
+      font-weight: 600;
+      color: var(--color-text);
+    }
+    .chip-mask {
+      color: var(--color-text-dim);
+      font-family: monospace;
+      font-size: 0.625rem;
+    }
+    .chip-remove {
+      background: none;
+      border: none;
+      color: var(--color-text-dim);
+      padding: 0.125rem;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      transition: color 0.15s, background 0.15s;
+    }
+    .chip-remove:hover {
+      color: #ef4444;
+      background: rgba(239, 68, 68, 0.1);
+    }
+
     /* Nexus Key Section */
     .nexus-key-section {
       background: var(--color-bg-card);
@@ -746,8 +873,29 @@ export class PlaystyleSelectComponent implements OnInit {
   providers = signal<LlmProvider[]>([]);
   providerExpanded = signal(true);
   providerKeys = signal<Record<string, string>>({});
-  visibleKeys = signal<Set<string>>(new Set());
   pendingGenerate = signal(false);
+
+  // Dynamic key entry state
+  newKeyInput = signal('');
+  detectionState = signal<{
+    type: 'exact' | 'ambiguous' | 'unknown';
+    providerId?: string;
+    providerName?: string;
+    matches?: { id: string; name: string }[];
+  } | null>(null);
+  savedKeyEntries = computed(() => {
+    const keys = this.providerKeys();
+    const providers = this.providers();
+    return Object.entries(keys)
+      .filter(([, key]) => key.length > 0)
+      .map(([providerId, key]) => {
+        const provider = providers.find(p => p.id === providerId);
+        const masked = key.length > 12
+          ? key.substring(0, 6) + '...' + key.substring(key.length - 4)
+          : '***';
+        return { providerId, providerName: provider?.name || providerId, masked };
+      });
+  });
 
   configuredCount = computed(() =>
     Object.values(this.providerKeys()).filter(k => k.length > 0).length
@@ -829,25 +977,74 @@ export class PlaystyleSelectComponent implements OnInit {
     return this.providerKeys()[provider] || '';
   }
 
-  onKeyInput(provider: string, event: Event): void {
-    const value = (event.target as HTMLInputElement).value;
-    const updated = { ...this.providerKeys(), [provider]: value };
+  onNewKeyPaste(event: ClipboardEvent): void {
+    const pasted = event.clipboardData?.getData('text')?.trim();
+    if (!pasted) return;
+    setTimeout(() => this.runKeyDetection(pasted), 0);
+  }
+
+  addNewKey(): void {
+    const key = this.newKeyInput().trim();
+    if (!key) return;
+    const state = this.detectionState();
+    if (state?.type === 'exact' && state.providerId) {
+      this.saveAutoDetectedKey(state.providerId, key);
+    } else if (!state) {
+      this.runKeyDetection(key);
+    }
+  }
+
+  confirmDetectedProvider(providerId: string): void {
+    if (!providerId) return;
+    const key = this.newKeyInput().trim();
+    if (!key) return;
+    this.saveAutoDetectedKey(providerId, key);
+  }
+
+  removeKey(providerId: string): void {
+    const updated = { ...this.providerKeys() };
+    delete updated[providerId];
     this.providerKeys.set(updated);
-
-    // Persist to localStorage
     this.persistToLocalStorage(updated);
-
-    // Persist to profile (fire-and-forget)
     if (this.authService.isLoggedIn()) {
-      this.api.saveLlmKeys({ [provider]: value }).subscribe({
-        error: () => {},  // Silent — localStorage is the primary backup
+      this.api.saveLlmKeys({ [providerId]: '' }).subscribe({ error: () => {} });
+    }
+  }
+
+  private runKeyDetection(key: string): void {
+    const result = detectProvider(key, this.providers());
+    if (!result) {
+      this.detectionState.set({ type: 'unknown' });
+    } else if (result.confidence === 'exact') {
+      this.detectionState.set({
+        type: 'exact',
+        providerId: result.providerId,
+        providerName: result.providerName,
+      });
+    } else {
+      this.detectionState.set({
+        type: 'ambiguous',
+        matches: result.matchedProviders,
       });
     }
+  }
 
-    // Auto-resume: if user was waiting to generate and now has keys
+  private saveAutoDetectedKey(providerId: string, key: string): void {
+    const updated = { ...this.providerKeys(), [providerId]: key };
+    this.providerKeys.set(updated);
+    this.persistToLocalStorage(updated);
+
+    if (this.authService.isLoggedIn()) {
+      this.api.saveLlmKeys({ [providerId]: key }).subscribe({ error: () => {} });
+    }
+
+    // Reset input state
+    this.newKeyInput.set('');
+    this.detectionState.set(null);
+
+    // Auto-resume generation if pending
     if (this.pendingGenerate() && this.configuredCount() > 0) {
       this.pendingGenerate.set(false);
-      // Small delay so the UI updates before the generate call
       setTimeout(() => this.generate(), 100);
     }
   }
@@ -868,20 +1065,6 @@ export class PlaystyleSelectComponent implements OnInit {
       this.pendingNexusKey.set(false);
       setTimeout(() => this.generate(), 100);
     }
-  }
-
-  isKeyVisible(provider: string): boolean {
-    return this.visibleKeys().has(provider);
-  }
-
-  toggleKeyVisibility(provider: string): void {
-    const current = new Set(this.visibleKeys());
-    if (current.has(provider)) {
-      current.delete(provider);
-    } else {
-      current.add(provider);
-    }
-    this.visibleKeys.set(current);
   }
 
   isLoggedIn(): boolean {

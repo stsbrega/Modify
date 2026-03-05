@@ -150,6 +150,9 @@ async def generate_modlist(
 
     total_phases = len(phase_list)
     last_successful_provider = providers_to_try[0]
+    # Permanent failure types — these providers won't recover mid-generation
+    _PERMANENT_ERRORS = {"auth_error", "token_limit"}
+    exhausted_providers: set[str] = set()
 
     # ── Phased generation loop ──
     for phase in phase_list:
@@ -165,10 +168,29 @@ async def generate_modlist(
             "is_patch_phase": is_patch_phase,
         })
 
+        # Build the provider order for this phase:
+        # 1. Last successful provider first (likely to keep working)
+        # 2. Skip permanently-exhausted providers
+        phase_providers = [
+            p for p in providers_to_try
+            if p.get_model_name() not in exhausted_providers
+        ]
+        if not phase_providers:
+            raise PauseGeneration(
+                reason="All LLM providers are exhausted",
+                phase_number=phase.phase_number,
+                phase_name=phase.name,
+                session_snapshot=session.to_snapshot(),
+            )
+        # Move last successful provider to front
+        if last_successful_provider in phase_providers:
+            phase_providers.remove(last_successful_provider)
+            phase_providers.insert(0, last_successful_provider)
+
         phase_succeeded = False
         provider_errors: list[str] = []
 
-        for i, llm in enumerate(providers_to_try):
+        for i, llm in enumerate(phase_providers):
             try:
                 session.finalized = False
 
@@ -202,7 +224,7 @@ async def generate_modlist(
                     messages=messages,
                     tools=tools,
                     tool_handlers=handlers,
-                    max_iterations=phase.max_mods + 5,
+                    max_iterations=phase.max_mods * 3 + 10,
                     on_text=lambda text: emit(
                         event_callback, "thinking", {"text": text[:200]}
                     ),
@@ -211,6 +233,12 @@ async def generate_modlist(
                 phase_succeeded = True
                 last_successful_provider = llm
                 session.completed_phases.append(phase.phase_number)
+
+                if not session.finalized:
+                    logger.warning(
+                        f"Phase {phase.phase_number} ({phase.name}) ended without "
+                        f"finalize() — LLM may have hit max iterations or stopped early"
+                    )
 
                 emit(event_callback, "phase_complete", {
                     "phase": phase.name,
@@ -233,17 +261,28 @@ async def generate_modlist(
                 )
                 provider_errors.append(friendly)
 
+                # Mark permanently-failed providers so we skip them on future phases
+                if error_type in _PERMANENT_ERRORS:
+                    exhausted_providers.add(llm.get_model_name())
+                    logger.info(
+                        f"Provider {llm.get_model_name()} marked as exhausted "
+                        f"({error_type}) — will not retry on future phases"
+                    )
+
                 emit(event_callback, "provider_error", {
                     "provider": llm.get_model_name(),
                     "type": error_type,
                     "message": friendly,
                 })
 
-                if i + 1 < len(providers_to_try):
-                    next_provider = providers_to_try[i + 1]
+                remaining = [
+                    p for p in phase_providers[i + 1:]
+                    if p.get_model_name() not in exhausted_providers
+                ]
+                if remaining:
                     emit(event_callback, "provider_switch", {
                         "from_provider": llm.get_model_name(),
-                        "to_provider": next_provider.get_model_name(),
+                        "to_provider": remaining[0].get_model_name(),
                     })
 
                 continue

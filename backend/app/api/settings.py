@@ -1,6 +1,8 @@
 import logging
+import time
+from collections import defaultdict
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +15,11 @@ from app.api.deps import get_current_user
 from app.services.nexus_client import NexusModsClient
 
 logger = logging.getLogger(__name__)
+
+# Simple in-memory rate limiter for sensitive endpoints
+_raw_keys_requests: dict[str, list[float]] = defaultdict(list)
+_RAW_KEYS_LIMIT = 10  # max requests per window
+_RAW_KEYS_WINDOW = 60  # seconds
 
 router = APIRouter()
 
@@ -90,7 +97,21 @@ async def get_llm_keys_raw(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return unmasked keys — used by the setup flow to pre-populate inputs."""
+    """Return unmasked keys — used by the setup flow to pre-populate inputs.
+
+    Rate-limited to 10 requests per minute per user to limit blast radius
+    if an account token is compromised.
+    """
+    user_id = str(current_user.id)
+    now = time.monotonic()
+    # Prune old entries outside the window
+    _raw_keys_requests[user_id] = [
+        t for t in _raw_keys_requests[user_id] if now - t < _RAW_KEYS_WINDOW
+    ]
+    if len(_raw_keys_requests[user_id]) >= _RAW_KEYS_LIMIT:
+        raise HTTPException(status_code=429, detail="Too many requests. Try again shortly.")
+    _raw_keys_requests[user_id].append(now)
+
     settings_row = await _get_or_create_settings(current_user, db)
     await db.commit()
     keys: dict = settings_row.llm_api_keys or {}

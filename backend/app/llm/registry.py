@@ -14,6 +14,7 @@ PROVIDER_REGISTRY: list[dict] = [
         "type": "anthropic",
         "placeholder": "sk-ant-...",
         "hint_url": "console.anthropic.com",
+        "key_prefixes": ["sk-ant-"],
     },
     {
         "id": "openai",
@@ -23,6 +24,7 @@ PROVIDER_REGISTRY: list[dict] = [
         "type": "openai_compatible",
         "placeholder": "sk-...",
         "hint_url": "platform.openai.com",
+        "key_prefixes": ["sk-proj-", "sk-"],
     },
     {
         "id": "gemini",
@@ -32,6 +34,7 @@ PROVIDER_REGISTRY: list[dict] = [
         "type": "openai_compatible",
         "placeholder": "AIza...",
         "hint_url": "aistudio.google.com",
+        "key_prefixes": ["AIza"],
     },
     {
         "id": "groq",
@@ -41,6 +44,7 @@ PROVIDER_REGISTRY: list[dict] = [
         "type": "openai_compatible",
         "placeholder": "gsk_...",
         "hint_url": "console.groq.com",
+        "key_prefixes": ["gsk_"],
     },
     {
         "id": "together",
@@ -50,6 +54,7 @@ PROVIDER_REGISTRY: list[dict] = [
         "type": "openai_compatible",
         "placeholder": "",
         "hint_url": "api.together.ai",
+        "key_prefixes": [],
     },
     {
         "id": "deepseek",
@@ -59,6 +64,7 @@ PROVIDER_REGISTRY: list[dict] = [
         "type": "openai_compatible",
         "placeholder": "sk-...",
         "hint_url": "platform.deepseek.com",
+        "key_prefixes": ["sk-"],
     },
     {
         "id": "mistral",
@@ -68,6 +74,7 @@ PROVIDER_REGISTRY: list[dict] = [
         "type": "openai_compatible",
         "placeholder": "",
         "hint_url": "console.mistral.ai",
+        "key_prefixes": [],
     },
 ]
 
@@ -89,6 +96,7 @@ def get_public_registry() -> list[dict]:
             "model": p["model"],
             "placeholder": p["placeholder"],
             "hint_url": p["hint_url"],
+            "key_prefixes": p["key_prefixes"],
         }
         for p in PROVIDER_REGISTRY
     ]

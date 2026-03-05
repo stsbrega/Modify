@@ -36,4 +36,5 @@ export interface LlmProvider {
   model: string;
   placeholder: string;
   hint_url: string;
+  key_prefixes: string[];
 }
