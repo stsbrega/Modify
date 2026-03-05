@@ -133,6 +133,12 @@ export interface ProviderSwitchEvent {
   timestamp?: number;
 }
 
+export interface ProviderError {
+  provider: string;
+  type: string;
+  message?: string;
+}
+
 export interface PausedEvent {
   type: 'paused';
   reason: string;
@@ -140,6 +146,7 @@ export interface PausedEvent {
   phase_number: number;
   mods_so_far: number;
   can_resume: boolean;
+  provider_errors?: ProviderError[];
   timestamp?: number;
 }
 
