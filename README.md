@@ -8,7 +8,7 @@ AI-powered video game modding assistant that analyzes your PC hardware and build
 - **Game Version Intelligence** — Distinguishes between Skyrim SE/AE and Fallout 4 Standard/Next-Gen to filter mods by compatibility
 - **Freeform Playstyle Prompts** — Describe what you want in plain language (e.g., "dark fantasy with survival mechanics and Legacy of the Dragonborn") and the AI interprets your intent into mod selection logic. Specific mod requests are treated as priority inclusions. Prompts are capped at 200 words (~270 tokens) to maintain efficient context usage
 - **Past Playstyle Analysis** — The AI analyzes your previous modlist builds for the same game to inform suggestions for new builds, helping refine recommendations over time
-- **AI-Powered Curation** — Uses 7 LLM providers (Anthropic, OpenAI, Gemini, Groq, Together AI, DeepSeek, Mistral) via an OpenAI-compatible client to generate compatible, conflict-free modlists through a 13-phase build methodology with post-build verification auditing
+- **AI-Powered Curation** — Uses 8 LLM providers (Anthropic, OpenAI, Gemini, Groq, Together AI, DeepSeek, Mistral, Qwen) via an OpenAI-compatible client to generate compatible, conflict-free modlists through a 13-phase build methodology with post-build verification auditing
 - **Multi-Provider Fallback** — Configure multiple LLM API keys; if one provider hits a rate limit or errors during generation, the system automatically falls back to the next configured provider for resilient modlist generation
 - **Dynamic Key Detection** — The settings page detects which LLM provider an API key belongs to automatically, so users can paste any key without manually selecting the provider
 - **API Key Guide** — Expandable help section in Settings and Setup wizard explaining how to obtain API keys, recommending free and paid providers, and explaining the benefit of multiple keys
@@ -57,7 +57,7 @@ The files use a hybrid Markdown + XML tag format: XML tags (`<section_name>`) pr
 | Backend | Python 3.12, FastAPI 0.115, SQLAlchemy 2.0, Pydantic 2 |
 | Database | PostgreSQL 16 (asyncpg) |
 | Auth | JWT + refresh tokens, bcrypt, OAuth (Google, Discord), email verification |
-| AI/LLM | 7 providers: Anthropic, OpenAI, Gemini, Groq, Together AI, DeepSeek, Mistral — OpenAI-compatible client |
+| AI/LLM | 8 providers: Anthropic, OpenAI, Gemini, Groq, Together AI, DeepSeek, Mistral, Qwen — OpenAI-compatible client |
 | Mod APIs | Nexus Mods v2 (GraphQL), Custom Sources |
 | Deployment | Render (Python runtime, static site, managed PostgreSQL) |
 

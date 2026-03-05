@@ -12,7 +12,7 @@ ModdersOmni is an AI-powered game modding assistant. Users input their PC hardwa
 - **Backend**: Python 3.12 + FastAPI 0.115 + SQLAlchemy 2.0 (async) + Pydantic 2
 - **Database**: PostgreSQL 16 (asyncpg)
 - **Auth**: JWT (python-jose) + bcrypt (direct, not passlib — passlib is incompatible with bcrypt 4+/Python 3.13+) + OAuth (authlib — Google, Discord) + email verification (fastapi-mail)
-- **LLM**: OpenAI-compatible SDK supporting 7 providers (Anthropic, OpenAI, Gemini, Groq, Together AI, DeepSeek, Mistral)
+- **LLM**: OpenAI-compatible SDK supporting 8 providers (Anthropic, OpenAI, Gemini, Groq, Together AI, DeepSeek, Mistral, Qwen)
 - **Mod API**: Nexus Mods v2 GraphQL API (per-user API keys)
 - **Deployment**: Render (Python backend, static frontend, managed PostgreSQL). Defined in `render.yaml`.
 

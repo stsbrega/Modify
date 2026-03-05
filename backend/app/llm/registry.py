@@ -76,6 +76,16 @@ PROVIDER_REGISTRY: list[dict] = [
         "hint_url": "console.mistral.ai",
         "key_prefixes": [],
     },
+    {
+        "id": "qwen",
+        "name": "Qwen (DashScope)",
+        "model": "qwen3.5-plus",
+        "base_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+        "type": "openai_compatible",
+        "placeholder": "sk-...",
+        "hint_url": "bailian.console.alibabacloud.com",
+        "key_prefixes": ["sk-"],
+    },
 ]
 
 
