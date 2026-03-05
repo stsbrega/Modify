@@ -394,7 +394,7 @@ interface TimelineItem {
                   <span class="lo-badge patch-badge">P</span>
                   <span class="mod-name">{{ patch.name }}</span>
                 </div>
-                <p class="mod-reason">Patches: {{ patch.patches_mods?.join(', ') }}</p>
+                <p class="mod-reason">Patches: {{ patch.patches_mods.join(', ') }}</p>
               </div>
             }
           </div>
