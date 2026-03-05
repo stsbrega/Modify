@@ -4,7 +4,6 @@ from abc import ABC, abstractmethod
 from typing import Any, Callable, Awaitable
 
 from openai import AsyncOpenAI
-from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -280,45 +279,21 @@ class LLMProviderFactory:
     """Factory to create LLM providers based on configuration or registry."""
 
     @staticmethod
-    def create(provider_name: str | None = None) -> LLMProvider:
-        """Create provider using server-side env-var credentials."""
+    def create(provider_name: str) -> LLMProvider:
+        """Create provider from the registry (no API key — used for server-side routing)."""
         from app.llm.registry import get_provider
 
-        settings = get_settings()
-        name = provider_name or settings.llm_provider
+        entry = get_provider(provider_name)
+        if not entry:
+            raise ValueError(f"Unknown LLM provider: {provider_name}")
 
-        # Ollama is a special local-only case not in the public registry
-        if name == "ollama":
-            return OpenAICompatibleProvider(
-                base_url=settings.ollama_base_url,
-                api_key="ollama",
-                model=settings.ollama_model,
-            )
+        model = entry["model"]
 
-        # Try registry lookup — gets base_url and type
-        entry = get_provider(name)
-        if entry:
-            # Read API key from env-var settings (e.g. settings.groq_api_key)
-            key_attr = f"{name}_api_key"
-            api_key = getattr(settings, key_attr, "")
-            model_attr = f"{name}_model"
-            model = getattr(settings, model_attr, entry["model"])
-
-            if entry["type"] == "anthropic":
-                return AnthropicProvider(api_key=api_key, model=model)
-            return OpenAICompatibleProvider(
-                base_url=entry["base_url"], api_key=api_key, model=model,
-            )
-
-        # Legacy: huggingface (in settings but not public registry)
-        if name == "huggingface":
-            return OpenAICompatibleProvider(
-                base_url="https://router.huggingface.co/v1",
-                api_key=settings.huggingface_api_key,
-                model=settings.huggingface_model,
-            )
-
-        raise ValueError(f"Unknown LLM provider: {name}")
+        if entry["type"] == "anthropic":
+            return AnthropicProvider(api_key="", model=model)
+        return OpenAICompatibleProvider(
+            base_url=entry["base_url"], api_key="", model=model,
+        )
 
     @staticmethod
     def create_from_request(

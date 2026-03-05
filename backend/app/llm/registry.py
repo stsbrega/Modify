@@ -29,7 +29,7 @@ PROVIDER_REGISTRY: list[dict] = [
     {
         "id": "gemini",
         "name": "Google Gemini",
-        "model": "gemini-2.0-flash",
+        "model": "gemini-2.5-flash",
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
         "type": "openai_compatible",
         "placeholder": "AIza...",
