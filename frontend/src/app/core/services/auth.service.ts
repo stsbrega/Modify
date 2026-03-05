@@ -86,7 +86,6 @@ export class AuthService {
       .post(`${this.baseUrl}/auth/logout`, {}, { withCredentials: true })
       .subscribe({ error: () => {} });
     this.clearAccessToken();
-    localStorage.removeItem('llm_keys');
     this._user.set(null);
     this.router.navigate(['/auth/login']);
   }

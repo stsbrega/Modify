@@ -109,6 +109,10 @@ Angular 19 standalone components with feature-based organization. Key routing:
 
 **Setup wizard**: `features/setup/steps/playstyle-select/` contains the main wizard step with game selection, playstyle choice, Nexus API key input, and AI provider key configuration. Keys are saved to user profile via `PUT /api/settings/`. Generation is gated on both Nexus key and at least one LLM provider key.
 
+**LLM API Key storage**: All LLM keys are stored in the `llm_api_keys` JSON column (single source of truth) via `PATCH /api/settings/llm-keys`. Legacy per-provider columns (`groq_api_key`, `together_api_key`, etc.) in `UserSettings` are deprecated — not read or written, kept only to avoid a DB migration. Keys are entered in 3 places (Settings page, Setup wizard, Generation pause form) — all write to the same JSON column.
+
+**Provider auto-detection**: `core/utils/key-detection.ts` exports `detectProvider(key, providers)` — matches API key prefixes from the provider registry to identify the provider. Use this instead of parsing model names or error messages.
+
 **API base URL**: Reads `window.__env.API_URL` (generated at build time on Render) with fallback to `/api` (proxied to localhost:8000 in dev via `proxy.conf.json`).
 
 ## Project Structure
@@ -183,6 +187,7 @@ frontend/
 - All API routes prefixed with `/api/`
 - `ruff` for linting, `black` for formatting
 - `get_current_user` dependency (in `deps.py`) eagerly loads `User.settings` via `selectinload` — no extra DB query needed in endpoints
+- `PUT /api/settings/` uses `AppSettingsUpdate` (Optional fields) for partial updates — callers can send only the fields they want to change. `GET` returns `AppSettings` (concrete values with defaults). Don't add non-Optional defaults to `AppSettingsUpdate` or partial updates will silently reset unmentioned fields.
 
 ### Frontend
 - Angular 19 standalone component API (no NgModules)

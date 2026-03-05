@@ -940,30 +940,14 @@ export class PlaystyleSelectComponent implements OnInit {
         error: () => {},
       });
 
-      let localKeys: Record<string, string> = {};
-      try {
-        const saved = localStorage.getItem('llm_keys');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (parsed && typeof parsed === 'object') localKeys = parsed;
-        }
-      } catch { /* ignore corrupt localStorage */ }
-
       this.api.getLlmKeys().subscribe({
-        next: (profileKeys) => {
-          const merged = { ...localKeys, ...profileKeys };
-          this.providerKeys.set(merged);
-          this.persistToLocalStorage(merged);
-          if (Object.values(merged).some(k => k?.length > 0)) {
+        next: (keys) => {
+          this.providerKeys.set(keys);
+          if (Object.values(keys).some(k => k?.length > 0)) {
             this.providerExpanded.set(false);
           }
         },
-        error: () => {
-          this.providerKeys.set(localKeys);
-          if (Object.values(localKeys).some(k => k?.length > 0)) {
-            this.providerExpanded.set(false);
-          }
-        },
+        error: () => {},
       });
     }
   }
@@ -1005,7 +989,6 @@ export class PlaystyleSelectComponent implements OnInit {
     const updated = { ...this.providerKeys() };
     delete updated[providerId];
     this.providerKeys.set(updated);
-    this.persistToLocalStorage(updated);
     if (this.authService.isLoggedIn()) {
       this.api.saveLlmKeys({ [providerId]: '' }).subscribe({ error: () => {} });
     }
@@ -1032,7 +1015,6 @@ export class PlaystyleSelectComponent implements OnInit {
   private saveAutoDetectedKey(providerId: string, key: string): void {
     const updated = { ...this.providerKeys(), [providerId]: key };
     this.providerKeys.set(updated);
-    this.persistToLocalStorage(updated);
 
     if (this.authService.isLoggedIn()) {
       this.api.saveLlmKeys({ [providerId]: key }).subscribe({ error: () => {} });
@@ -1151,14 +1133,6 @@ export class PlaystyleSelectComponent implements OnInit {
       timestamp: Date.now(),
     };
     localStorage.setItem('setup_wizard_state', JSON.stringify(state));
-  }
-
-  private persistToLocalStorage(keys: Record<string, string>): void {
-    const toSave: Record<string, string> = {};
-    for (const [k, v] of Object.entries(keys)) {
-      if (v) toSave[k] = v;
-    }
-    localStorage.setItem('llm_keys', JSON.stringify(toSave));
   }
 
   private getMaxFreeStorageGb(): number | undefined {

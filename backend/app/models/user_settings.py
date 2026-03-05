@@ -19,6 +19,10 @@ class UserSettings(Base):
     )
 
     nexus_api_key: Mapped[str] = mapped_column(String(255), default="")
+
+    # DEPRECATED: Legacy per-provider columns — no longer read or written.
+    # LLM keys are now stored in the `llm_api_keys` JSON column.
+    # Columns kept to avoid a DB migration; safe to drop in a future migration.
     llm_provider: Mapped[str] = mapped_column(String(20), default="ollama")
     ollama_base_url: Mapped[str] = mapped_column(
         String(255), default="http://localhost:11434/v1"

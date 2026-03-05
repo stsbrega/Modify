@@ -3,10 +3,11 @@ import time
 from collections import defaultdict
 
 from fastapi import APIRouter, Depends, HTTPException
+from typing import Optional
+
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import get_settings
 from app.database import get_db
 from app.llm.registry import get_public_registry
 from app.models.user import User
@@ -28,24 +29,21 @@ _NOTIF_FIELDS = {"email_alerts", "mod_recommendations", "compat_warnings"}
 
 
 class AppSettings(BaseModel):
+    """Response model for GET /settings/ — always returns concrete values."""
     nexus_api_key: str = ""
-    llm_provider: str = "ollama"
-    ollama_base_url: str = "http://localhost:11434/v1"
-    ollama_model: str = "llama3.1:8b"
-    groq_api_key: str = ""
-    groq_model: str = "llama-3.3-70b-versatile"
-    together_api_key: str = ""
-    together_model: str = "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free"
-    huggingface_api_key: str = ""
-    huggingface_model: str = "meta-llama/Llama-3.1-8B-Instruct"
-    custom_source_api_url: str = ""
-    custom_source_api_key: str = ""
-    # Notification preferences (stored in notification_prefs JSON column)
     email_alerts: bool = True
     mod_recommendations: bool = True
     compat_warnings: bool = True
 
     model_config = {"from_attributes": True}
+
+
+class AppSettingsUpdate(BaseModel):
+    """Request model for PUT /settings/ — all fields optional for partial updates."""
+    nexus_api_key: Optional[str] = None
+    email_alerts: Optional[bool] = None
+    mod_recommendations: Optional[bool] = None
+    compat_warnings: Optional[bool] = None
 
 
 async def _get_or_create_settings(
@@ -192,27 +190,23 @@ async def get_app_settings(
 
 @router.put("/")
 async def update_settings(
-    data: AppSettings,
+    data: AppSettingsUpdate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     settings_row = await _get_or_create_settings(current_user, db)
+    provided = data.model_dump(exclude_none=True)
 
-    # Store notification prefs in JSON column (not individual DB columns)
-    settings_row.notification_prefs = {
-        k: v for k, v in data.model_dump().items() if k in _NOTIF_FIELDS
-    }
+    # Nexus API key → dedicated DB column
+    if "nexus_api_key" in provided:
+        settings_row.nexus_api_key = provided["nexus_api_key"]
 
-    # Update regular DB columns, skipping notification fields
-    for field, value in data.model_dump().items():
-        if field not in _NOTIF_FIELDS and hasattr(settings_row, field):
-            setattr(settings_row, field, value)
-
-    # Also update the runtime config so LLM providers pick up new keys
-    config = get_settings()
-    config.llm_provider = data.llm_provider
-    config.ollama_base_url = data.ollama_base_url
-    config.ollama_model = data.ollama_model
+    # Notification prefs → merge into JSON column (only overwrite provided fields)
+    notif_update = {k: v for k, v in provided.items() if k in _NOTIF_FIELDS}
+    if notif_update:
+        current_prefs = dict(settings_row.notification_prefs or {})
+        current_prefs.update(notif_update)
+        settings_row.notification_prefs = current_prefs
 
     await db.commit()
     return {"status": "ok", "message": "Settings saved"}

@@ -26,6 +26,8 @@ import {
   ModAddedEvent,
   PatchAddedEvent,
 } from '../../shared/models/generation.model';
+import { LlmProvider } from '../../shared/models/mod.model';
+import { detectProvider } from '../../core/utils/key-detection';
 
 /** Flat item for the timeline — either a phase accordion header or a regular event. */
 interface TimelineItem {
@@ -239,7 +241,20 @@ interface TimelineItem {
                         <span class="tl-switch">Switched to {{ $any(item.event).to_provider }}</span>
                       }
                       @case ('paused') {
-                        <span class="tl-paused-msg">Paused — {{ $any(item.event).reason }}</span>
+                        <span class="tl-paused-msg">Paused — all providers failed</span>
+                        @if ($any(item.event).provider_errors?.length) {
+                          <ul class="tl-error-list">
+                            @for (err of $any(item.event).provider_errors; track err.provider) {
+                              <li class="tl-error-item" [attr.data-type]="err.type">
+                                <span class="tl-err-icon">{{ getErrorIcon(err.type) }}</span>
+                                <span class="tl-err-provider">{{ err.provider }}</span>
+                                <span class="tl-err-detail">{{ getErrorLabel(err.type) }}</span>
+                              </li>
+                            }
+                          </ul>
+                        } @else {
+                          <span class="tl-paused-reason">{{ $any(item.event).reason }}</span>
+                        }
                       }
                       @case ('resumed') {
                         <span class="tl-resumed-msg">Resumed at Phase {{ $any(item.event).phase_number }}</span>
@@ -307,7 +322,19 @@ interface TimelineItem {
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="10" y1="15" x2="10" y2="9"/><line x1="14" y1="15" x2="14" y2="9"/></svg>
               <div class="banner-text">
                 <strong>Generation paused</strong>
-                <p>{{ gen.pauseInfo()?.reason }}</p>
+                @if (gen.pauseInfo()?.provider_errors?.length) {
+                  <ul class="banner-error-list">
+                    @for (err of gen.pauseInfo()!.provider_errors!; track err.provider) {
+                      <li class="banner-error-item" [attr.data-type]="err.type">
+                        <span class="banner-err-icon">{{ getErrorIcon(err.type) }}</span>
+                        <span class="banner-err-provider">{{ err.provider }}</span>
+                        <span class="banner-err-detail">{{ getErrorLabel(err.type) }}</span>
+                      </li>
+                    }
+                  </ul>
+                } @else {
+                  <p>{{ gen.pauseInfo()?.reason }}</p>
+                }
                 <p class="mods-saved">{{ gen.modsAdded().length }} mods saved from completed phases.</p>
               </div>
 
@@ -756,6 +783,59 @@ interface TimelineItem {
         color: #ef4444;
         font-weight: 500;
       }
+      .tl-paused-reason {
+        color: #f59e0b;
+        font-size: 0.8125rem;
+        display: block;
+        margin-top: 0.25rem;
+      }
+      .tl-error-list, .banner-error-list {
+        list-style: none;
+        padding: 0;
+        margin: 0.375rem 0 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+      }
+      .tl-error-item, .banner-error-item {
+        display: flex;
+        align-items: center;
+        gap: 0.375rem;
+        font-size: 0.75rem;
+        color: var(--color-text-muted);
+      }
+      .tl-err-icon, .banner-err-icon {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.625rem;
+        font-weight: 700;
+        flex-shrink: 0;
+        background: rgba(239, 68, 68, 0.15);
+        color: #ef4444;
+      }
+      .tl-error-item[data-type="rate_limit"] .tl-err-icon,
+      .banner-error-item[data-type="rate_limit"] .banner-err-icon {
+        background: rgba(245, 158, 11, 0.15);
+        color: #f59e0b;
+      }
+      .tl-error-item[data-type="timeout"] .tl-err-icon,
+      .banner-error-item[data-type="timeout"] .banner-err-icon {
+        background: rgba(245, 158, 11, 0.15);
+        color: #f59e0b;
+      }
+      .tl-err-provider, .banner-err-provider {
+        font-weight: 600;
+        color: var(--color-text);
+        font-family: monospace;
+        font-size: 0.6875rem;
+      }
+      .tl-err-detail, .banner-err-detail {
+        color: var(--color-text-dim);
+      }
 
       /* Working indicator */
       .dot-pulse {
@@ -1171,6 +1251,7 @@ export class GenerationComponent implements OnInit, OnDestroy, AfterViewChecked 
 
   apiKeyInput = '';
   resuming = signal(false);
+  private providers = signal<LlmProvider[]>([]);
   userAtBottom = signal(true);
   private prevEventCount = 0;
   private shouldAutoScroll = true;
@@ -1267,9 +1348,36 @@ export class GenerationComponent implements OnInit, OnDestroy, AfterViewChecked 
       || evt.type === 'paused' || evt.type === 'resumed';
   }
 
+  getErrorIcon(errorType: string): string {
+    switch (errorType) {
+      case 'auth_error': return '\u00D7';     // ×
+      case 'rate_limit': return '\u29D7';     // ⧗
+      case 'token_limit': return '\u0024';    // $
+      case 'timeout': return '\u25F7';        // ◷
+      case 'connection': return '\u2298';     // ⊘
+      default: return '\u0021';               // !
+    }
+  }
+
+  getErrorLabel(errorType: string): string {
+    switch (errorType) {
+      case 'auth_error': return 'Invalid API key';
+      case 'rate_limit': return 'Rate limited';
+      case 'token_limit': return 'Quota exceeded';
+      case 'timeout': return 'Request timed out';
+      case 'connection': return 'Connection failed';
+      default: return 'Error';
+    }
+  }
+
   isAuthError = computed(() => {
     const info = this.gen.pauseInfo();
     if (!info) return false;
+    // Prefer structured error data
+    if (info.provider_errors?.length) {
+      return info.provider_errors.some(e => e.type === 'auth_error');
+    }
+    // Fallback to string matching for backward compat
     const reason = (info.reason || '').toLowerCase();
     return (
       reason.includes('api key') ||
@@ -1292,6 +1400,10 @@ export class GenerationComponent implements OnInit, OnDestroy, AfterViewChecked 
     if (id) {
       this.gen.reconnectIfNeeded(id);
     }
+    this.api.getLlmProviders().subscribe({
+      next: (p) => this.providers.set(p),
+      error: () => {},
+    });
   }
 
   ngOnDestroy(): void {
@@ -1360,12 +1472,9 @@ export class GenerationComponent implements OnInit, OnDestroy, AfterViewChecked 
     if (!this.apiKeyInput) return;
     this.resuming.set(true);
 
-    // Extract provider from the error message if possible
-    const reason = this.gen.pauseInfo()?.reason || '';
-    const providerMatch = reason.match(/^([^:]+):/);
-    const providerKey = providerMatch
-      ? providerMatch[1].trim().toLowerCase().replace(/\s+/g, '_')
-      : 'default';
+    // Auto-detect provider from key prefix pattern
+    const detection = detectProvider(this.apiKeyInput.trim(), this.providers());
+    const providerKey = detection?.providerId ?? 'unknown';
 
     this.api.saveLlmKeys({ [providerKey]: this.apiKeyInput }).subscribe({
       next: () => {
