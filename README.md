@@ -8,9 +8,13 @@ AI-powered video game modding assistant that analyzes your PC hardware and build
 - **Game Version Intelligence** — Distinguishes between Skyrim SE/AE and Fallout 4 Standard/Next-Gen to filter mods by compatibility
 - **Freeform Playstyle Prompts** — Describe what you want in plain language (e.g., "dark fantasy with survival mechanics and Legacy of the Dragonborn") and the AI interprets your intent into mod selection logic. Specific mod requests are treated as priority inclusions. Prompts are capped at 200 words (~270 tokens) to maintain efficient context usage
 - **Past Playstyle Analysis** — The AI analyzes your previous modlist builds for the same game to inform suggestions for new builds, helping refine recommendations over time
-- **AI-Powered Curation** — Uses open-source LLMs (local via Ollama or free cloud APIs) to generate compatible, conflict-free modlists through a 13-phase build methodology with post-build verification auditing
+- **AI-Powered Curation** — Uses 7 LLM providers (Anthropic, OpenAI, Gemini, Groq, Together AI, DeepSeek, Mistral) via an OpenAI-compatible client to generate compatible, conflict-free modlists through a 13-phase build methodology with post-build verification auditing
+- **Multi-Provider Fallback** — Configure multiple LLM API keys; if one provider hits a rate limit or errors during generation, the system automatically falls back to the next configured provider for resilient modlist generation
+- **Dynamic Key Detection** — The settings page detects which LLM provider an API key belongs to automatically, so users can paste any key without manually selecting the provider
+- **API Key Guide** — Expandable help section in Settings and Setup wizard explaining how to obtain API keys, recommending free and paid providers, and explaining the benefit of multiple keys
 - **Nexus Mods Integration** — Search, browse, and download mods directly via the Nexus Mods v2 GraphQL API
 - **User Accounts & OAuth** — Register with email or sign in with Google/Discord, save hardware profiles, and access your modlist history
+- **Inactive Account Cleanup** — Users inactive for 1 year receive a warning email, then have their account and stored data automatically deleted after 30 additional days to protect unused API keys and personal data
 - **Load Order Management** — Automatic load order sorting based on compatibility rules
 - **One-Click Downloads** — Download your entire modlist with real-time progress tracking via WebSockets
 
@@ -52,8 +56,8 @@ The files use a hybrid Markdown + XML tag format: XML tags (`<section_name>`) pr
 | Frontend | Angular 19, Tailwind CSS 4, TypeScript 5.7 |
 | Backend | Python 3.12, FastAPI 0.115, SQLAlchemy 2.0, Pydantic 2 |
 | Database | PostgreSQL 16 (asyncpg) |
-| Auth | JWT + refresh tokens, OAuth (Google, Discord), email verification |
-| AI/LLM | Ollama (local), Groq, Together AI, HuggingFace (cloud) — OpenAI-compatible client |
+| Auth | JWT + refresh tokens, bcrypt, OAuth (Google, Discord), email verification |
+| AI/LLM | 7 providers: Anthropic, OpenAI, Gemini, Groq, Together AI, DeepSeek, Mistral — OpenAI-compatible client |
 | Mod APIs | Nexus Mods v2 (GraphQL), Custom Sources |
 | Deployment | Render (Python runtime, static site, managed PostgreSQL) |
 
@@ -98,16 +102,17 @@ moddersomni/
 │   │   ├── llm/         # LLM provider abstraction (OpenAI-compatible)
 │   │   ├── models/      # SQLAlchemy ORM models
 │   │   ├── schemas/     # Pydantic request/response schemas
-│   │   ├── services/    # Business logic (auth, email, OAuth, spec parser, tier classifier, modlist generator, Nexus client)
+│   │   ├── services/    # Business logic (auth, email, OAuth, spec parser, tier classifier, Nexus client, account cleanup)
+│   │   │   └── generation/  # Modlist generation pipeline (manager, prompts, session, tools, version)
 │   │   └── seeds/       # Database seed data
 │   ├── alembic/         # Database migrations
 │   ├── tests/           # pytest + pytest-asyncio
 │   └── .env.example     # Environment variable reference
 ├── frontend/            # Angular 19 SPA
 │   └── src/app/
-│       ├── core/        # Services, interceptors, guards
-│       ├── shared/      # Reusable components, models
-│       └── features/    # Feature modules (landing, dashboard, setup, modlist, downloads, browse, settings, auth)
+│       ├── core/        # Services, interceptors, guards, utilities (key detection)
+│       ├── shared/      # Reusable components (header, notification-toast, api-key-guide), models
+│       └── features/    # Feature modules (landing, dashboard, setup, generation, modlist, downloads, browse, settings, auth)
 ├── render.yaml          # Render infrastructure blueprint
 └── docs/                # Documentation
 ```
@@ -118,7 +123,7 @@ ModdersOmni is deployed on [Render](https://render.com) using a `render.yaml` in
 
 To deploy your own instance: push to GitHub, then in Render Dashboard go to Blueprints → New Blueprint Instance. Environment variables marked `sync: false` in `render.yaml` (API keys, OAuth secrets) must be set manually after first deploy.
 
-> **Note**: Ollama (local LLM) does not work on Render — use a cloud provider like Groq or Together AI.
+> **Note**: Ollama (local LLM) does not work on Render — use a cloud provider (Groq, Together AI, Gemini, etc.).
 
 ## Contributing
 
@@ -133,5 +138,4 @@ This project is licensed under the GPL-3.0 License — see the [LICENSE](LICENSE
 - [Nexus Mods](https://www.nexusmods.com/) for their modding platform and API
 - [CommonLibSSE](https://github.com/Ryan-rsm-McKenzie/CommonLibSSE) and [SKSE](https://skse.silverlock.org/) for foundational modding infrastructure
 - [LOOT](https://loot.github.io/) for load order optimization research
-- [Ollama](https://ollama.ai/) for local LLM inference
 - The Bethesda modding community for decades of accumulated knowledge and open-source tooling

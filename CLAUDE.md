@@ -33,6 +33,8 @@ pytest tests/ -v                         # Tests (require PostgreSQL or aiosqlit
 - Local Python is 3.14; `requirements.txt` pins versions for Render (Python 3.12). Install deps individually (`pip install <pkg>`) if pinned versions fail to build.
 - Running tests requires `aiosqlite` (not in requirements.txt): `pip install aiosqlite`
 - `conftest.py` imports `app.main` which chains all app imports — all backend deps must be installed even for pure unit tests
+- `ruff` is not on PATH locally — use `python -m ruff check app/` instead of `ruff check app/`
+- Always run ruff before pushing — `ruff check` is a hard-fail in CI (unused imports = F401 are the most common cause)
 
 ### Frontend (run from `frontend/`)
 
@@ -129,6 +131,7 @@ backend/
     services/         # Business logic
       modlist_generator.py  # Core: phased LLM tool-calling generation
       generation_manager.py # In-memory generation state + SSE event dispatch
+      account_cleanup.py    # Background task: inactive account warning + deletion
       nexus_client.py       # Nexus Mods v2 GraphQL client
       auth.py               # JWT creation/validation, password hashing
       email.py              # SMTP email sending
@@ -152,8 +155,9 @@ frontend/
       services/       # ApiService, AuthService, GenerationService, NotificationService, ThemeService
       interceptors/   # AuthInterceptor (JWT header), ErrorInterceptor
       guards/         # authGuard, guestGuard
+      utils/          # key-detection (auto-detect LLM provider from pasted API key)
     shared/
-      components/     # header, notification-toast
+      components/     # header, notification-toast, api-key-guide
       models/         # TypeScript interfaces
     features/
       auth/           # Login, register, OAuth callback, email verify, password reset
@@ -185,6 +189,8 @@ frontend/
 - Feature components use **inline templates and styles** (single `.ts` files)
 - CSS custom properties defined in `styles.scss` for theming; component styles use inline SCSS
 - Fonts: DM Sans (body) + Playfair Display (headings) via Google Fonts — use simple weight syntax (`wght@300;400;500;600;700`), NOT variable font axis syntax (causes 400 errors during Angular font inlining)
+- `authInterceptor` uses `inject(Injector)` + lazy `injector.get(AuthService)` to avoid circular DI (AuthService → HttpClient → interceptor → AuthService). Do NOT change this to direct `inject(AuthService)`.
+- After modifying frontend files, if dev server shows stale behavior, clear `.angular/cache` and restart (`rm -rf frontend/.angular/cache`)
 
 ## Deployment (Render)
 
