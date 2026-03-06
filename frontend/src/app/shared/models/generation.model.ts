@@ -8,6 +8,8 @@
 // ── Event type union ──
 
 export type GenerationEventType =
+  | 'providers_ready'
+  | 'nexus_validated'
   | 'phase_start'
   | 'searching'
   | 'search_results'
@@ -27,12 +29,33 @@ export type GenerationEventType =
 
 // ── Event payloads ──
 
+export interface ProviderInfo {
+  provider_id: string;
+  name: string;
+  model: string;
+}
+
+export interface ProvidersReadyEvent {
+  type: 'providers_ready';
+  providers: ProviderInfo[];
+  count: number;
+  timestamp?: number;
+}
+
+export interface NexusValidatedEvent {
+  type: 'nexus_validated';
+  username: string;
+  is_premium: boolean;
+  timestamp?: number;
+}
+
 export interface PhaseStartEvent {
   type: 'phase_start';
   phase: string;
   number: number;
   total_phases: number;
   is_patch_phase?: boolean;
+  provider?: string;
   timestamp?: number;
 }
 
@@ -88,6 +111,7 @@ export interface PhaseCompleteEvent {
   number: number;
   mod_count: number;
   patch_count?: number;
+  provider?: string;
   timestamp?: number;
 }
 
@@ -160,6 +184,8 @@ export interface ResumedEvent {
 // ── Union type for all events ──
 
 export type GenerationEvent =
+  | ProvidersReadyEvent
+  | NexusValidatedEvent
   | PhaseStartEvent
   | SearchingEvent
   | SearchResultsEvent

@@ -192,6 +192,7 @@ async def generate_modlist(
     return ModlistResponse(
         id=modlist.id,
         game_id=request.game_id,
+        game_domain=game.nexus_domain if game else None,
         playstyle_id=request.playstyle_id,
         entries=entries_schema,
         llm_provider=modlist.llm_provider,
@@ -246,6 +247,12 @@ async def get_my_modlists(
     )
     modlists = result.scalars().all()
 
+    # Pre-fetch game domains for all unique game_ids
+    game_ids = {ml.game_id for ml in modlists}
+    game_map: dict[int, Game | None] = {}
+    for gid in game_ids:
+        game_map[gid] = await db.get(Game, gid)
+
     responses = []
     for ml in modlists:
         entry_result = await db.execute(
@@ -261,10 +268,12 @@ async def get_my_modlists(
         )
         flags = [_flag_to_schema(f) for f in flag_result.scalars().all()]
 
+        game = game_map.get(ml.game_id)
         responses.append(
             ModlistResponse(
                 id=ml.id,
                 game_id=ml.game_id,
+                game_domain=game.nexus_domain if game else None,
                 playstyle_id=ml.playstyle_id,
                 entries=entries,
                 llm_provider=ml.llm_provider,
@@ -391,6 +400,8 @@ async def get_modlist(modlist_id: str, db: AsyncSession = Depends(get_db)):
     if not modlist:
         raise HTTPException(status_code=404, detail="Modlist not found")
 
+    game = await db.get(Game, modlist.game_id)
+
     # Load entries — use denormalized fields directly
     entry_result = await db.execute(
         select(ModlistEntry)
@@ -409,6 +420,7 @@ async def get_modlist(modlist_id: str, db: AsyncSession = Depends(get_db)):
     return ModlistResponse(
         id=modlist.id,
         game_id=modlist.game_id,
+        game_domain=game.nexus_domain if game else None,
         playstyle_id=modlist.playstyle_id,
         entries=entries,
         llm_provider=modlist.llm_provider,

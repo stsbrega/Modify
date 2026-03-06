@@ -17,10 +17,18 @@ from .session import GenerationSession, strip_html
 logger = logging.getLogger(__name__)
 
 
-def emit(callback: Callable[[dict], None] | None, event_type: str, data: dict) -> None:
-    """Emit an event if a callback is provided."""
+def emit(callback: Callable[[dict], None] | None, event_type: str, data: dict, debug_data: dict | None = None) -> None:
+    """Emit an event if a callback is provided.
+
+    If debug_data is given it is attached as ``_debug`` so that
+    GenerationManager.emit() can split it into the debug log while
+    keeping the SSE stream lean.
+    """
     if callback:
-        callback({"type": event_type, **data})
+        event = {"type": event_type, **data}
+        if debug_data:
+            event["_debug"] = debug_data
+        callback(event)
 
 
 async def retry_nexus(
@@ -103,20 +111,24 @@ def build_phase1_handlers(
 
         mods = []
         for m in results[:15]:
+            author = m.get("author", "Unknown")
+            mod_id = m["modId"]
+            session.author_cache[mod_id] = author
             mods.append({
-                "mod_id": m["modId"],
+                "mod_id": mod_id,
                 "name": m["name"],
-                "author": m.get("author", "Unknown"),
+                "author": author,
                 "summary": (m.get("summary") or "")[:200],
                 "endorsements": m.get("endorsements", 0),
                 "category": m.get("modCategory", {}).get("name", ""),
                 "updated": m.get("updatedAt", ""),
             })
-        sample_names = [m["name"] for m in mods[:5]]
+        all_names = [m["name"] for m in mods]
+        logger.debug("Search '%s' returned %d results: %s", query, len(mods), all_names)
         emit(event_callback, "search_results", {
             "count": len(mods),
-            "sample_names": sample_names,
-        })
+            "sample_names": all_names[:5],
+        }, debug_data={"all_names": all_names})
         return json.dumps({"results": mods, "count": len(mods)})
 
     async def get_mod_details(mod_id: int) -> str:
@@ -135,10 +147,12 @@ def build_phase1_handlers(
         desc_html = details.get("description") or ""
         desc_text = strip_html(desc_html)
         session.description_cache[mod_id] = desc_text
+        author = details.get("author", "Unknown")
+        session.author_cache[mod_id] = author
         return json.dumps({
             "mod_id": details["modId"],
             "name": details["name"],
-            "author": details.get("author", "Unknown"),
+            "author": author,
             "summary": details.get("summary", ""),
             "description": desc_text,
             "endorsements": details.get("endorsements", 0),
@@ -149,10 +163,11 @@ def build_phase1_handlers(
         mod_id: int, name: str, reason: str, load_order: int,
         author: str = "", summary: str = "", estimated_size_mb: int = 0,
     ) -> str:
+        resolved_author = author or session.author_cache.get(mod_id, "")
         entry = {
             "nexus_mod_id": mod_id,
             "name": name,
-            "author": author,
+            "author": resolved_author,
             "summary": summary,
             "reason": reason,
             "load_order": load_order,
@@ -160,6 +175,8 @@ def build_phase1_handlers(
             "is_patch": False,
         }
         session.modlist.append(entry)
+        logger.debug("Mod added: %s (id=%d, order=%d, size=%dMB) — %s",
+                      name, mod_id, load_order, estimated_size_mb, reason)
         emit(event_callback, "mod_added", {
             "mod_id": mod_id,
             "name": name,
@@ -225,33 +242,41 @@ def build_phase2_handlers(
 
         patches = []
         for m in results[:10]:
+            author = m.get("author", "Unknown")
+            mod_id = m["modId"]
+            session.author_cache[mod_id] = author
             patches.append({
-                "mod_id": m["modId"],
+                "mod_id": mod_id,
                 "name": m["name"],
-                "author": m.get("author", "Unknown"),
+                "author": author,
                 "summary": (m.get("summary") or "")[:200],
                 "endorsements": m.get("endorsements", 0),
             })
+        all_patch_names = [p["name"] for p in patches]
+        logger.debug("Patch search '%s' returned %d results: %s", query, len(patches), all_patch_names)
         emit(event_callback, "search_results", {
             "count": len(patches),
-            "sample_names": [p["name"] for p in patches[:5]],
-        })
+            "sample_names": all_patch_names[:5],
+        }, debug_data={"all_names": all_patch_names})
         return json.dumps({"results": patches, "count": len(patches)})
 
     async def add_patch(
         mod_id: int, name: str, patches_mods: list[str], reason: str,
         load_order: int, author: str = "",
     ) -> str:
+        resolved_author = author or session.author_cache.get(mod_id, "")
         entry = {
             "nexus_mod_id": mod_id,
             "name": name,
-            "author": author,
+            "author": resolved_author,
             "reason": reason,
             "load_order": load_order,
             "is_patch": True,
             "patches_mods": patches_mods,
         }
         session.patches.append(entry)
+        logger.debug("Patch added: %s (id=%d, order=%d) patches %s — %s",
+                      name, mod_id, load_order, patches_mods, reason)
         emit(event_callback, "patch_added", {
             "mod_id": mod_id,
             "name": name,

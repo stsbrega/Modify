@@ -20,6 +20,7 @@ class GenerationState:
 
     generation_id: str
     events: list[dict] = field(default_factory=list)
+    debug_log: list[dict] = field(default_factory=list)
     subscribers: list[asyncio.Queue] = field(default_factory=list)
     status: str = "running"  # running | complete | error | paused
     modlist_id: str | None = None
@@ -67,14 +68,22 @@ class GenerationManager:
         return generation_id
 
     def emit(self, generation_id: str, event: dict) -> None:
-        """Store an event and push it to all active subscribers."""
+        """Store an event and push it to all active subscribers.
+
+        If the event carries a ``_debug`` key (injected by the pipeline's
+        ``emit()`` helper), it is stripped from the SSE event and merged
+        into a separate ``debug_log`` entry with full untruncated data.
+        """
         state = self._generations.get(generation_id)
         if not state:
             logger.warning(f"emit() called for unknown generation {generation_id}")
             return
 
-        # Add timestamp
         event["timestamp"] = time.time()
+
+        # Separate debug data from SSE event
+        debug_data = event.pop("_debug", None)
+
         state.events.append(event)
 
         # Push to all subscriber queues (non-blocking)
@@ -83,6 +92,12 @@ class GenerationManager:
                 queue.put_nowait(event)
             except asyncio.QueueFull:
                 logger.warning(f"Subscriber queue full for generation {generation_id}")
+
+        # Store full-detail copy in debug log
+        debug_entry = dict(event)
+        if debug_data:
+            debug_entry.update(debug_data)
+        state.debug_log.append(debug_entry)
 
     def make_emitter(self, generation_id: str) -> Callable[[dict], None]:
         """Return a callback function bound to a specific generation ID.

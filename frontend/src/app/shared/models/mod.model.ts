@@ -21,6 +21,7 @@ export interface UserKnowledgeFlag {
 export interface Modlist {
   id: string;
   game_id: number;
+  game_domain?: string;
   playstyle_id: number;
   entries: ModEntry[];
   llm_provider?: string;

@@ -107,9 +107,9 @@ import { trigger, transition, style, animate, query, stagger } from '@angular/an
                   <p class="compat-note">{{ entry.compatibility_notes }}</p>
                 }
               </div>
-              @if (entry.nexus_mod_id) {
+              @if (entry.nexus_mod_id && modlist()!.game_domain) {
                 <a class="nexus-link"
-                   [href]="'https://www.nexusmods.com/skyrimspecialedition/mods/' + entry.nexus_mod_id"
+                   [href]="'https://www.nexusmods.com/' + modlist()!.game_domain + '/mods/' + entry.nexus_mod_id"
                    target="_blank" rel="noopener">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/>
