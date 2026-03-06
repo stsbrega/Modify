@@ -15,6 +15,7 @@ class GenerationSession:
     patches: list[dict] = field(default_factory=list)
     knowledge_flags: list[dict] = field(default_factory=list)
     description_cache: dict[int, str] = field(default_factory=dict)
+    author_cache: dict[int, str] = field(default_factory=dict)
     finalized: bool = False
     completed_phases: list[int] = field(default_factory=list)
 
@@ -26,6 +27,7 @@ class GenerationSession:
             "patches": list(self.patches),
             "knowledge_flags": list(self.knowledge_flags),
             "description_cache": {str(k): v for k, v in self.description_cache.items()},
+            "author_cache": {str(k): v for k, v in self.author_cache.items()},
             "completed_phases": list(self.completed_phases),
         }
 
@@ -39,6 +41,7 @@ class GenerationSession:
             patches=snapshot.get("patches", []),
             knowledge_flags=snapshot.get("knowledge_flags", []),
             description_cache={int(k): v for k, v in snapshot.get("description_cache", {}).items()},
+            author_cache={int(k): v for k, v in snapshot.get("author_cache", {}).items()},
             completed_phases=snapshot.get("completed_phases", []),
         )
 

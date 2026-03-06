@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.llm.provider import LLMProvider, LLMProviderFactory
+from app.llm.registry import get_provider
 from app.models.compatibility import CompatibilityRule
 from app.models.game import Game
 from app.models.mod import Mod
@@ -123,6 +124,19 @@ async def generate_modlist(
 
     providers_to_try = _build_provider_list(request)
 
+    # Notify frontend which providers are available
+    emit(event_callback, "providers_ready", {
+        "providers": [
+            {
+                "provider_id": p.provider_id,
+                "name": (get_provider(p.provider_id) or {}).get("name", p.provider_id),
+                "model": p.get_model_name(),
+            }
+            for p in providers_to_try
+        ],
+        "count": len(providers_to_try),
+    })
+
     # Create or restore Nexus client and session
     nexus = NexusModsClient(api_key=nexus_api_key)
 
@@ -161,13 +175,6 @@ async def generate_modlist(
 
         is_patch_phase = (phase.phase_number == phase_list[-1].phase_number)
 
-        emit(event_callback, "phase_start", {
-            "phase": phase.name,
-            "number": phase.phase_number,
-            "total_phases": total_phases,
-            "is_patch_phase": is_patch_phase,
-        })
-
         # Build the provider order for this phase:
         # 1. Last successful provider first (likely to keep working)
         # 2. Skip permanently-exhausted providers
@@ -186,6 +193,14 @@ async def generate_modlist(
         if last_successful_provider in phase_providers:
             phase_providers.remove(last_successful_provider)
             phase_providers.insert(0, last_successful_provider)
+
+        emit(event_callback, "phase_start", {
+            "phase": phase.name,
+            "number": phase.phase_number,
+            "total_phases": total_phases,
+            "is_patch_phase": is_patch_phase,
+            "provider": phase_providers[0].get_model_name(),
+        })
 
         phase_succeeded = False
         provider_errors: list[str] = []
@@ -220,14 +235,16 @@ async def generate_modlist(
                     f"(provider: {llm.get_model_name()})"
                 )
 
+                def _on_text(text: str) -> None:
+                    logger.debug("LLM reasoning: %s", text)
+                    emit(event_callback, "thinking", {"text": text[:200]}, debug_data={"full_text": text})
+
                 await llm.generate_with_tools(
                     messages=messages,
                     tools=tools,
                     tool_handlers=handlers,
                     max_iterations=phase.max_mods * 3 + 10,
-                    on_text=lambda text: emit(
-                        event_callback, "thinking", {"text": text[:200]}
-                    ),
+                    on_text=_on_text,
                 )
 
                 phase_succeeded = True
@@ -245,12 +262,17 @@ async def generate_modlist(
                     "number": phase.phase_number,
                     "mod_count": len(session.modlist),
                     "patch_count": len(session.patches),
+                    "provider": llm.get_model_name(),
                 })
 
                 logger.info(
                     f"Phase {phase.phase_number} complete: "
-                    f"{len(session.modlist)} mods, {len(session.patches)} patches"
+                    f"{len(session.modlist)} mods, {len(session.patches)} patches "
+                    f"(provider: {llm.get_model_name()})"
                 )
+                logger.debug("Modlist after phase %d: %s",
+                             phase.phase_number,
+                             [m["name"] for m in session.modlist])
                 break
 
             except Exception as e:
@@ -326,6 +348,18 @@ async def _generate_legacy(
 
     providers_to_try = _build_provider_list(request)
 
+    emit(event_callback, "providers_ready", {
+        "providers": [
+            {
+                "provider_id": p.provider_id,
+                "name": (get_provider(p.provider_id) or {}).get("name", p.provider_id),
+                "model": p.get_model_name(),
+            }
+            for p in providers_to_try
+        ],
+        "count": len(providers_to_try),
+    })
+
     discovery_prompt = LEGACY_DISCOVERY_PROMPT.format(
         game_name=game.name,
         game_version=game_version or "Unknown",
@@ -355,7 +389,12 @@ async def _generate_legacy(
                 "phase": "Discovery",
                 "number": 1,
                 "total_phases": 2,
+                "provider": llm.get_model_name(),
             })
+
+            def _on_text(text: str) -> None:
+                logger.debug("LLM reasoning: %s", text)
+                emit(event_callback, "thinking", {"text": text[:200]}, debug_data={"full_text": text})
 
             messages = [
                 {"role": "system", "content": discovery_prompt},
@@ -367,15 +406,14 @@ async def _generate_legacy(
                 tools=PHASE1_TOOLS,
                 tool_handlers=build_phase1_handlers(session, event_callback),
                 max_iterations=20,
-                on_text=lambda text: emit(
-                    event_callback, "thinking", {"text": text[:200]}
-                ),
+                on_text=_on_text,
             )
 
             emit(event_callback, "phase_complete", {
                 "phase": "Discovery",
                 "number": 1,
                 "mod_count": len(session.modlist),
+                "provider": llm.get_model_name(),
             })
 
             if session.modlist:
@@ -396,6 +434,7 @@ async def _generate_legacy(
                     "phase": "Patch Review",
                     "number": 2,
                     "total_phases": 2,
+                    "provider": llm.get_model_name(),
                 })
 
                 await llm.generate_with_tools(
@@ -406,9 +445,7 @@ async def _generate_legacy(
                     tools=PHASE2_TOOLS,
                     tool_handlers=build_phase2_handlers(session, event_callback),
                     max_iterations=15,
-                    on_text=lambda text: emit(
-                        event_callback, "thinking", {"text": text[:200]}
-                    ),
+                    on_text=_on_text,
                 )
 
                 emit(event_callback, "phase_complete", {
@@ -416,6 +453,7 @@ async def _generate_legacy(
                     "number": 2,
                     "mod_count": len(session.modlist),
                     "patch_count": len(session.patches),
+                    "provider": llm.get_model_name(),
                 })
 
             all_entries = session.modlist + session.patches

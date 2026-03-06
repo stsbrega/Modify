@@ -12,7 +12,7 @@ import logging
 import uuid as _uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -159,6 +159,32 @@ async def start_generation(
     )
 
     return GenerationStartResponse(generation_id=generation_id)
+
+
+@router.get("/{generation_id}/log")
+async def download_generation_log(
+    generation_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Download the full debug log for a generation as a JSON file.
+
+    Contains untruncated thinking text and all search result names —
+    data that is stripped from SSE events to keep the stream lean.
+    """
+    manager = GenerationManager.get_instance()
+    state = manager.get_state(generation_id)
+    if not state:
+        raise HTTPException(status_code=404, detail="Generation not found")
+
+    if state.user_id and state.user_id != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Not your generation")
+
+    return JSONResponse(
+        content={"generation_id": generation_id, "events": state.debug_log},
+        headers={
+            "Content-Disposition": f'attachment; filename="generation-{generation_id[:8]}.json"',
+        },
+    )
 
 
 async def _get_user_from_token(token: str, db: AsyncSession) -> User | None:

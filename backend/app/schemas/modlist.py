@@ -47,6 +47,7 @@ class UserKnowledgeFlag(BaseModel):
 class ModlistResponse(BaseModel):
     id: uuid.UUID
     game_id: int
+    game_domain: str | None = None
     playstyle_id: int
     entries: list[ModEntry] = []
     llm_provider: str | None = None

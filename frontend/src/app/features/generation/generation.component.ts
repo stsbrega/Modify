@@ -25,6 +25,8 @@ import {
   GenerationEvent,
   ModAddedEvent,
   PatchAddedEvent,
+  ProvidersReadyEvent,
+  NexusValidatedEvent,
 } from '../../shared/models/generation.model';
 import { LlmProvider } from '../../shared/models/mod.model';
 import { detectProvider } from '../../core/utils/key-detection';
@@ -153,7 +155,12 @@ interface TimelineItem {
         <section class="timeline-panel">
           <div class="panel-header">
             <h2>Activity</h2>
-            <span class="event-count">{{ gen.events().length }} events</span>
+            <div class="panel-header-right">
+              <span class="event-count">{{ gen.events().length }} events</span>
+              <button class="log-download-btn" (click)="downloadLog()" title="Download generation debug log">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              </button>
+            </div>
           </div>
           <div class="timeline-scroll" #timelineEl>
             @for (item of timelineItems(); track $index) {
@@ -198,6 +205,24 @@ interface TimelineItem {
                   <div class="tl-icon" [innerHTML]="iconFor(item.event)"></div>
                   <div class="tl-body">
                     @switch (item.event.type) {
+                      @case ('providers_ready') {
+                        <div class="tl-providers-ready">
+                          <strong>{{ $any(item.event).count }} provider{{ $any(item.event).count !== 1 ? 's' : '' }} available</strong>
+                          <ul class="tl-provider-list">
+                            @for (p of $any(item.event).providers; track p.provider_id) {
+                              <li><span class="tl-provider-name">{{ p.name }}</span> <span class="tl-provider-model">{{ p.model }}</span></li>
+                            }
+                          </ul>
+                        </div>
+                      }
+                      @case ('nexus_validated') {
+                        <div class="tl-nexus-validated">
+                          Nexus Mods connected as <strong>{{ $any(item.event).username }}</strong>
+                          @if ($any(item.event).is_premium) {
+                            <span class="tl-premium-badge">Premium</span>
+                          }
+                        </div>
+                      }
                       @case ('searching') {
                         <span class="tl-muted">Searching: <em>"{{ $any(item.event).query }}"</em></span>
                       }
@@ -547,6 +572,28 @@ interface TimelineItem {
         font-size: 0.75rem;
         color: var(--color-text-dim);
       }
+      .panel-header-right {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .log-download-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        height: 26px;
+        border: 1px solid var(--color-border);
+        border-radius: 5px;
+        background: transparent;
+        color: var(--color-text-dim);
+        cursor: pointer;
+        transition: color 0.15s, border-color 0.15s;
+      }
+      .log-download-btn:hover {
+        color: var(--color-gold);
+        border-color: var(--color-gold);
+      }
 
       /* ── Timeline ── */
       .timeline-panel {
@@ -766,6 +813,49 @@ interface TimelineItem {
       .tl-switch {
         color: var(--color-text-muted);
         font-size: 0.75rem;
+      }
+      .tl-providers-ready {
+        font-size: 0.8125rem;
+      }
+      .tl-providers-ready strong {
+        color: #8b5cf6;
+      }
+      .tl-provider-list {
+        list-style: none;
+        padding: 0;
+        margin: 0.25rem 0 0;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.375rem;
+      }
+      .tl-provider-list li {
+        font-size: 0.75rem;
+        background: var(--color-surface-2, rgba(255,255,255,0.05));
+        border-radius: 4px;
+        padding: 0.125rem 0.5rem;
+      }
+      .tl-provider-name {
+        font-weight: 500;
+      }
+      .tl-provider-model {
+        color: var(--color-text-muted);
+        margin-left: 0.25rem;
+      }
+      .tl-nexus-validated {
+        font-size: 0.8125rem;
+      }
+      .tl-premium-badge {
+        display: inline-block;
+        background: linear-gradient(135deg, #f59e0b, #d97706);
+        color: #000;
+        font-size: 0.625rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 0.0625rem 0.375rem;
+        border-radius: 3px;
+        margin-left: 0.375rem;
+        vertical-align: middle;
       }
       .tl-paused-msg {
         color: #f59e0b;
@@ -1468,6 +1558,25 @@ export class GenerationComponent implements OnInit, OnDestroy, AfterViewChecked 
     });
   }
 
+  downloadLog(): void {
+    const genId = this.gen.generationId();
+    if (!genId) return;
+    this.api.getGenerationLog(genId).subscribe({
+      next: (data) => {
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `generation-${genId.slice(0, 8)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      },
+      error: () => {
+        this.notifications.error('Failed to download generation log');
+      },
+    });
+  }
+
   updateKeyAndResume(): void {
     if (!this.apiKeyInput) return;
     this.resuming.set(true);
@@ -1490,6 +1599,10 @@ export class GenerationComponent implements OnInit, OnDestroy, AfterViewChecked 
 
   iconFor(evt: GenerationEvent): string {
     const icons: Record<string, string> = {
+      providers_ready:
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:#8b5cf6"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+      nexus_validated:
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:#22c55e"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>',
       phase_start:
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--color-gold)"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>',
       searching:

@@ -47,6 +47,10 @@ export class ApiService {
     return this.http.post<GenerationStartResponse>(`${this.baseUrl}/generation/start`, request);
   }
 
+  getGenerationLog(generationId: string): Observable<any> {
+    return this.http.get(`${this.baseUrl}/generation/${generationId}/log`);
+  }
+
   getModlist(modlistId: string): Observable<Modlist> {
     return this.http.get<Modlist>(`${this.baseUrl}/modlist/${modlistId}`);
   }
